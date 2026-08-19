@@ -57,6 +57,7 @@ python cli.py <server> list-aliases                          # List aliases (no 
 - **Docker build** — Add `--progress=plain` for real-time output. Never `| tail` (blocks until done)
 - **Shell** — Set `shell` in server YAML: `bash` / `cmd` / `powershell`
 - **Jump host** — Set `server.jump_host` to another server config name; the CLI and MCP tools use it automatically
+- **Configuration UI** — Use `ssh_open_config` to add, edit, or delete server configs
 
 ## More
 

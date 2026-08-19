@@ -27,6 +27,7 @@ python cli.py <server> alias deploy
 
 | Tool | Parameters | Description |
 |------|------------|-------------|
+| `ssh_open_config` | — | Open the server configuration UI |
 | `ssh_list_servers` | — | List all configured servers |
 | `ssh_create_server` | `server`, `config` | Create a server config; refuses overwrite |
 | `ssh_update_server` | `server`, `config`, `replace`(default false) | Merge a config patch or replace it |
@@ -47,6 +48,7 @@ python cli.py <server> alias deploy
 - **Dynamic alias tools** — MCP exposes aliases as `ssh_alias.{server}.{name}`
 - **Live stream output** — For real-time streaming, use CLI. See [CLI_USAGE.md](CLI_USAGE.md)
 - **Jump host** — Set `server.jump_host` to another server config name; all MCP and CLI operations route through it automatically
+- **Configuration UI** — Use `ssh_open_config` to manage multiple server configs in the conversation
 - **Docker build real-time output** — `docker build` uses buildkit JSON output by default. Add `--progress=plain` for real-time output. NEVER pipe to `tail` (e.g. `| tail -5`) as it buffers until command completes. Example: `docker build --progress=plain -t myimage .`
 
 ## Shell Support

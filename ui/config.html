@@ -1,0 +1,1383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SSH 服务器配置</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f6f7f8;
+      --surface: #ffffff;
+      --surface-soft: #f8f9fa;
+      --text: #151719;
+      --muted: #666b72;
+      --line: #e2e5e8;
+      --line-strong: #cbd0d6;
+      --accent: #245fa8;
+      --accent-soft: #edf4fc;
+      --danger: #b42318;
+      --danger-soft: #fff2f0;
+      --success: #157347;
+      --focus: 0 0 0 3px rgba(36, 95, 168, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: "Segoe UI Variable", "Microsoft YaHei UI", "PingFang SC",
+        "Noto Sans CJK SC", system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    .app {
+      width: min(1080px, calc(100% - 24px));
+      min-height: 620px;
+      margin: 12px auto;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .topbar {
+      display: flex;
+      min-height: 64px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .title-line {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 680;
+      letter-spacing: -0.02em;
+    }
+
+    .count {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .layout {
+      display: grid;
+      min-height: 554px;
+      grid-template-columns: 260px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      padding: 16px 12px;
+      background: var(--surface-soft);
+      border-right: 1px solid var(--line);
+    }
+
+    .sidebar-label {
+      margin: 0 8px 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0.04em;
+    }
+
+    .server-list {
+      display: grid;
+      gap: 4px;
+    }
+
+    .server-item {
+      width: 100%;
+      padding: 10px 12px;
+      text-align: left;
+      color: inherit;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+    }
+
+    .server-item:hover {
+      background: #ffffff;
+      border-color: var(--line);
+    }
+
+    .server-item[aria-current="true"] {
+      background: var(--accent-soft);
+      border-color: #ccdcf0;
+    }
+
+    .server-name {
+      display: block;
+      overflow: hidden;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .server-meta {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .server-host {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .jump-mark {
+      flex: 0 0 auto;
+      color: var(--accent);
+    }
+
+    .empty-list {
+      margin: 12px 8px;
+      color: var(--muted);
+    }
+
+    .content {
+      min-width: 0;
+      padding: 24px clamp(20px, 5vw, 48px) 32px;
+    }
+
+    .form-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .form-head h2 {
+      margin: 0;
+      overflow: hidden;
+      font-size: 20px;
+      font-weight: 680;
+      letter-spacing: -0.02em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      color: var(--success);
+      background: #edf8f2;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .section {
+      margin: 0 0 28px;
+      padding: 0;
+      border: 0;
+    }
+
+    .section-title,
+    .section legend {
+      width: 100%;
+      margin: 0 0 14px;
+      padding: 0 0 8px;
+      font-size: 14px;
+      font-weight: 680;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .field {
+      min-width: 0;
+    }
+
+    .field.wide {
+      grid-column: 1 / -1;
+    }
+
+    label,
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #34383d;
+      font-size: 13px;
+      font-weight: 620;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 40px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: #ffffff;
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      outline: 0;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    textarea {
+      min-height: 76px;
+      resize: vertical;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: #949aa1;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus,
+    button:focus-visible,
+    summary:focus-visible {
+      border-color: var(--accent);
+      box-shadow: var(--focus);
+      outline: 0;
+    }
+
+    input[aria-invalid="true"],
+    select[aria-invalid="true"],
+    textarea[aria-invalid="true"] {
+      border-color: var(--danger);
+    }
+
+    input:disabled {
+      color: var(--muted);
+      background: #f1f2f3;
+      cursor: not-allowed;
+    }
+
+    .field-note {
+      min-height: 18px;
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field-note.error {
+      color: var(--danger);
+    }
+
+    .secret-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .secret-line label {
+      margin: 0;
+    }
+
+    .saved {
+      color: var(--success);
+      font-size: 12px;
+      font-weight: 620;
+    }
+
+    .auth-switch {
+      display: inline-grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+      margin-bottom: 16px;
+      padding: 3px;
+      background: #f0f2f4;
+      border-radius: 8px;
+    }
+
+    .auth-switch label {
+      margin: 0;
+    }
+
+    .auth-switch input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .auth-switch span {
+      display: block;
+      min-width: 92px;
+      padding: 6px 12px;
+      text-align: center;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 620;
+    }
+
+    .auth-switch input:checked + span {
+      color: var(--accent);
+      background: #ffffff;
+      border-color: var(--line);
+    }
+
+    .auth-switch input:focus-visible + span {
+      box-shadow: var(--focus);
+    }
+
+    details {
+      margin-bottom: 28px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    summary {
+      display: flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2px;
+      font-weight: 680;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    summary::after {
+      content: "展开";
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    details[open] summary::after {
+      content: "收起";
+    }
+
+    .details-body {
+      padding: 4px 0 20px;
+    }
+
+    .check-row {
+      display: flex;
+      min-height: 40px;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 0;
+    }
+
+    .check-row input {
+      width: 17px;
+      min-height: 17px;
+      height: 17px;
+      margin: 0;
+      accent-color: var(--accent);
+    }
+
+    .check-row label {
+      margin: 0;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 4px;
+    }
+
+    .action-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .button {
+      min-height: 38px;
+      padding: 7px 14px;
+      color: #2f3337;
+      background: #ffffff;
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      font-weight: 650;
+    }
+
+    .button:hover {
+      background: #f7f8f9;
+    }
+
+    .button.primary {
+      color: #ffffff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .button.primary:hover {
+      background: #1d518f;
+    }
+
+    .button.danger {
+      color: var(--danger);
+      background: transparent;
+      border-color: transparent;
+    }
+
+    .button.danger:hover,
+    .button.danger.armed {
+      background: var(--danger-soft);
+      border-color: #f3c8c4;
+    }
+
+    .button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+
+    .loading {
+      display: flex;
+      min-height: 260px;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 10;
+      max-width: min(360px, calc(100vw - 40px));
+      padding: 10px 14px;
+      color: #ffffff;
+      background: #24272a;
+      border-radius: 8px;
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity 150ms ease, transform 150ms ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast.error {
+      background: var(--danger);
+    }
+
+    @media (max-width: 720px) {
+      .app {
+        width: 100%;
+        min-height: 100vh;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+      }
+
+      .layout {
+        display: block;
+      }
+
+      .sidebar {
+        padding: 12px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .server-list {
+        display: flex;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: thin;
+      }
+
+      .server-item {
+        flex: 0 0 180px;
+      }
+
+      .content {
+        padding: 20px 16px 28px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .field.wide {
+        grid-column: auto;
+      }
+
+      .topbar {
+        padding: 12px 16px;
+      }
+
+      .actions {
+        align-items: stretch;
+        flex-direction: column-reverse;
+      }
+
+      .action-right {
+        width: 100%;
+      }
+
+      .action-right .button {
+        flex: 1;
+      }
+
+      .button.danger {
+        align-self: flex-start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="title-line">
+        <h1>服务器配置</h1>
+        <span class="count" id="serverCount">0 台</span>
+      </div>
+      <button class="button" id="newButton" type="button">新建服务器</button>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar" aria-label="服务器列表">
+        <p class="sidebar-label">服务器</p>
+        <nav class="server-list" id="serverList"></nav>
+        <p class="empty-list" id="emptyList" hidden>还没有服务器。</p>
+      </aside>
+
+      <main class="content">
+        <div class="loading" id="loading">正在读取配置…</div>
+
+        <form id="serverForm" novalidate hidden>
+          <div class="form-head">
+            <h2 id="formTitle">新建服务器</h2>
+            <span class="status-tag" id="inheritTag" hidden>使用了共享配置</span>
+          </div>
+
+          <section class="section" aria-labelledby="connectionTitle">
+            <h3 class="section-title" id="connectionTitle">连接</h3>
+            <div class="grid">
+              <div class="field">
+                <label for="serverName">配置名</label>
+                <input id="serverName" name="serverName" autocomplete="off" required>
+                <p class="field-note" id="serverNameError"></p>
+              </div>
+              <div class="field">
+                <label for="displayName">显示名称</label>
+                <input id="displayName" name="displayName" autocomplete="off">
+              </div>
+              <div class="field wide">
+                <label for="host">地址</label>
+                <input id="host" name="host" autocomplete="off" required>
+                <p class="field-note" id="hostError"></p>
+              </div>
+              <div class="field">
+                <label for="port">端口</label>
+                <input id="port" name="port" type="number" min="1" max="65535" inputmode="numeric" required>
+                <p class="field-note" id="portError"></p>
+              </div>
+              <div class="field">
+                <label for="user">用户名</label>
+                <input id="user" name="user" autocomplete="username" required>
+                <p class="field-note" id="userError"></p>
+              </div>
+              <div class="field wide">
+                <label for="jumpHost">跳板机</label>
+                <select id="jumpHost" name="jumpHost">
+                  <option value="">直接连接</option>
+                </select>
+                <p class="field-note" id="jumpHostNote"></p>
+              </div>
+            </div>
+          </section>
+
+          <fieldset class="section">
+            <legend>登录方式</legend>
+            <div class="auth-switch" role="radiogroup" aria-label="登录方式">
+              <label>
+                <input type="radio" name="authMode" value="password" checked>
+                <span>密码</span>
+              </label>
+              <label>
+                <input type="radio" name="authMode" value="key">
+                <span>私钥</span>
+              </label>
+              <label>
+                <input type="radio" name="authMode" value="agent">
+                <span>系统密钥</span>
+              </label>
+            </div>
+
+            <div id="passwordFields">
+              <div class="field">
+                <div class="secret-line">
+                  <label for="password">密码</label>
+                  <span class="saved" id="passwordSaved" hidden>已设置</span>
+                </div>
+                <input id="password" name="password" type="password" autocomplete="new-password">
+                <p class="field-note" id="passwordNote">已保存的密码不会显示。</p>
+              </div>
+            </div>
+
+            <div class="grid" id="keyFields" hidden>
+              <div class="field wide">
+                <label for="keyPath">私钥路径</label>
+                <input id="keyPath" name="keyPath" autocomplete="off">
+                <p class="field-note" id="keyPathError"></p>
+              </div>
+              <div class="field wide">
+                <div class="secret-line">
+                  <label for="keyPassword">私钥密码</label>
+                  <span class="saved" id="keyPasswordSaved" hidden>已设置</span>
+                </div>
+                <input id="keyPassword" name="keyPassword" type="password" autocomplete="new-password">
+              </div>
+            </div>
+
+            <p class="field-note" id="agentFields" hidden>使用电脑里的 SSH 密钥。</p>
+          </fieldset>
+
+          <details id="moreSettings">
+            <summary>更多设置</summary>
+            <div class="details-body">
+              <div class="grid">
+                <div class="field">
+                  <label for="shell">命令类型</label>
+                  <select id="shell" name="shell">
+                    <option value="bash">Bash</option>
+                    <option value="powershell">PowerShell</option>
+                    <option value="cmd">CMD</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="timeout">连接超时（秒）</label>
+                  <input id="timeout" name="timeout" type="number" min="1" inputmode="numeric">
+                  <p class="field-note" id="timeoutError"></p>
+                </div>
+                <div class="field">
+                  <label for="group">分组</label>
+                  <input id="group" name="group" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="system">系统</label>
+                  <input id="system" name="system" autocomplete="off">
+                </div>
+                <div class="field wide">
+                  <label for="scriptsDir">服务器脚本目录</label>
+                  <input id="scriptsDir" name="scriptsDir" autocomplete="off">
+                </div>
+                <div class="field wide">
+                  <label for="scriptsLocalDir">本地脚本目录</label>
+                  <input id="scriptsLocalDir" name="scriptsLocalDir" autocomplete="off">
+                </div>
+                <div class="field">
+                  <div class="check-row">
+                    <input id="autoReconnect" name="autoReconnect" type="checkbox">
+                    <label for="autoReconnect">断线后自动重连</label>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="reconnectInterval">重连间隔（秒）</label>
+                  <input id="reconnectInterval" name="reconnectInterval" type="number" min="0" step="0.5" inputmode="decimal">
+                  <p class="field-note" id="reconnectError"></p>
+                </div>
+                <div class="field wide">
+                  <div class="secret-line">
+                    <label for="sudoPassword">管理员密码</label>
+                    <span class="saved" id="sudoPasswordSaved" hidden>已设置</span>
+                  </div>
+                  <input id="sudoPassword" name="sudoPassword" type="password" autocomplete="new-password">
+                  <p class="field-note">需要 sudo 时再填。</p>
+                </div>
+                <div class="field wide">
+                  <label for="description">备注</label>
+                  <textarea id="description" name="description"></textarea>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <div class="actions">
+            <button class="button danger" id="deleteButton" type="button">删除服务器</button>
+            <div class="action-right">
+              <button class="button" id="cancelDeleteButton" type="button" hidden>不删了</button>
+              <button class="button primary" id="saveButton" type="submit">保存</button>
+            </div>
+          </div>
+        </form>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var state = {
+        servers: [],
+        selected: null,
+        detail: null,
+        isNew: false,
+        busy: false,
+        deleteArmed: false,
+        loadToken: 0,
+        receivedInitialData: false
+      };
+
+      var pendingRequests = new Map();
+      var nextRequestId = 1;
+      var bridgeReady = false;
+      var toastTimer = null;
+
+      var elements = {
+        serverCount: document.getElementById("serverCount"),
+        serverList: document.getElementById("serverList"),
+        emptyList: document.getElementById("emptyList"),
+        newButton: document.getElementById("newButton"),
+        loading: document.getElementById("loading"),
+        form: document.getElementById("serverForm"),
+        formTitle: document.getElementById("formTitle"),
+        inheritTag: document.getElementById("inheritTag"),
+        saveButton: document.getElementById("saveButton"),
+        deleteButton: document.getElementById("deleteButton"),
+        cancelDeleteButton: document.getElementById("cancelDeleteButton"),
+        moreSettings: document.getElementById("moreSettings"),
+        toast: document.getElementById("toast"),
+        serverName: document.getElementById("serverName"),
+        displayName: document.getElementById("displayName"),
+        host: document.getElementById("host"),
+        port: document.getElementById("port"),
+        user: document.getElementById("user"),
+        jumpHost: document.getElementById("jumpHost"),
+        jumpHostNote: document.getElementById("jumpHostNote"),
+        passwordFields: document.getElementById("passwordFields"),
+        keyFields: document.getElementById("keyFields"),
+        agentFields: document.getElementById("agentFields"),
+        password: document.getElementById("password"),
+        passwordSaved: document.getElementById("passwordSaved"),
+        passwordNote: document.getElementById("passwordNote"),
+        keyPath: document.getElementById("keyPath"),
+        keyPassword: document.getElementById("keyPassword"),
+        keyPasswordSaved: document.getElementById("keyPasswordSaved"),
+        shell: document.getElementById("shell"),
+        timeout: document.getElementById("timeout"),
+        group: document.getElementById("group"),
+        system: document.getElementById("system"),
+        scriptsDir: document.getElementById("scriptsDir"),
+        scriptsLocalDir: document.getElementById("scriptsLocalDir"),
+        autoReconnect: document.getElementById("autoReconnect"),
+        reconnectInterval: document.getElementById("reconnectInterval"),
+        sudoPassword: document.getElementById("sudoPassword"),
+        sudoPasswordSaved: document.getElementById("sudoPasswordSaved"),
+        description: document.getElementById("description")
+      };
+
+      function request(method, params) {
+        var id = nextRequestId++;
+        window.parent.postMessage({
+          jsonrpc: "2.0",
+          id: id,
+          method: method,
+          params: params
+        }, "*");
+        return new Promise(function (resolve, reject) {
+          pendingRequests.set(id, { resolve: resolve, reject: reject });
+        });
+      }
+
+      function callTool(name, args) {
+        var openai = window.openai;
+        if (!bridgeReady && openai && typeof openai.callTool === "function") {
+          return openai.callTool(name, args || {});
+        }
+        return request("tools/call", {
+          name: name,
+          arguments: args || {}
+        });
+      }
+
+      function extractPayload(result) {
+        if (!result) return null;
+        if (result.structuredContent) return result.structuredContent;
+        if (result.content && result.content[0] && result.content[0].text) {
+          try {
+            return JSON.parse(result.content[0].text);
+          } catch (error) {
+            return null;
+          }
+        }
+        return result.servers ? result : null;
+      }
+
+      function resultError(result) {
+        if (!result || !result.isError) return null;
+        var text = result.content && result.content[0] && result.content[0].text;
+        return new Error(text || "操作失败");
+      }
+
+      function humanError(error) {
+        var message = String(error && (error.message || error.data || error) || "操作失败");
+        if (/already exists/i.test(message)) return "这个配置名已经存在。";
+        if (/not found/i.test(message)) return "没有找到这个服务器配置。";
+        if (/cannot reference itself/i.test(message)) return "跳板机不能选自己。";
+        if (/Only one jump host layer/i.test(message)) return "跳板机不能再使用跳板机。";
+        if (/cannot be combined/i.test(message)) return "跳板机不能和代理同时使用。";
+        if (/non-empty server\.host/i.test(message)) return "请填写服务器地址。";
+        if (/non-empty server\.user/i.test(message)) return "请填写用户名。";
+        var marker = message.lastIndexOf("Error:");
+        if (marker >= 0) message = message.slice(marker + 6).trim();
+        return message.split("\n")[0] || "操作失败";
+      }
+
+      function showToast(message, isError) {
+        window.clearTimeout(toastTimer);
+        elements.toast.textContent = message;
+        elements.toast.classList.toggle("error", Boolean(isError));
+        elements.toast.classList.add("show");
+        toastTimer = window.setTimeout(function () {
+          elements.toast.classList.remove("show");
+        }, 2600);
+      }
+
+      function setBusy(busy, label) {
+        state.busy = busy;
+        elements.form.setAttribute("aria-busy", String(busy));
+        elements.saveButton.disabled = busy;
+        elements.deleteButton.disabled = busy;
+        elements.newButton.disabled = busy;
+        elements.saveButton.textContent = busy ? (label || "请稍候…") : "保存";
+      }
+
+      function setValue(element, value, fallback) {
+        element.value = value === undefined || value === null ? (fallback || "") : String(value);
+      }
+
+      function currentAuthMode() {
+        var selected = document.querySelector('input[name="authMode"]:checked');
+        return selected ? selected.value : "password";
+      }
+
+      function setAuthMode(mode) {
+        var radio = document.querySelector('input[name="authMode"][value="' + mode + '"]');
+        if (radio) radio.checked = true;
+        updateAuthFields();
+      }
+
+      function updateAuthFields() {
+        var mode = currentAuthMode();
+        elements.passwordFields.hidden = mode !== "password";
+        elements.keyFields.hidden = mode !== "key";
+        elements.agentFields.hidden = mode !== "agent";
+      }
+
+      function rememberSelection() {
+        var openai = window.openai;
+        if (openai && typeof openai.setWidgetState === "function") {
+          openai.setWidgetState({ selectedId: state.selected });
+        }
+      }
+
+      function renderList() {
+        elements.serverList.replaceChildren();
+        elements.serverCount.textContent = state.servers.length + " 台";
+        elements.emptyList.hidden = state.servers.length !== 0;
+
+        state.servers.forEach(function (server) {
+          var button = document.createElement("button");
+          var name = document.createElement("span");
+          var meta = document.createElement("span");
+          var host = document.createElement("span");
+
+          button.type = "button";
+          button.className = "server-item";
+          button.dataset.server = server.name;
+          button.setAttribute("aria-current", String(server.name === state.selected && !state.isNew));
+
+          name.className = "server-name";
+          name.textContent = server.display || server.name;
+          meta.className = "server-meta";
+          host.className = "server-host";
+          host.textContent = server.error ? "配置有误" : (server.host || server.name);
+          meta.appendChild(host);
+
+          if (server.jump_host) {
+            var jump = document.createElement("span");
+            jump.className = "jump-mark";
+            jump.textContent = "经 " + server.jump_host;
+            meta.appendChild(jump);
+          }
+
+          button.appendChild(name);
+          button.appendChild(meta);
+          button.addEventListener("click", function () {
+            selectServer(server.name);
+          });
+          elements.serverList.appendChild(button);
+        });
+      }
+
+      function renderJumpOptions(selectedValue) {
+        elements.jumpHost.replaceChildren();
+        var direct = document.createElement("option");
+        direct.value = "";
+        direct.textContent = "直接连接";
+        elements.jumpHost.appendChild(direct);
+
+        state.servers.forEach(function (server) {
+          if (server.name === state.selected || server.error) return;
+          if (server.jump_host && server.name !== selectedValue) return;
+          var option = document.createElement("option");
+          option.value = server.name;
+          option.textContent = server.display && server.display !== server.name
+            ? server.display + "（" + server.name + "）"
+            : server.name;
+          elements.jumpHost.appendChild(option);
+        });
+
+        elements.jumpHost.value = selectedValue || "";
+        if (selectedValue && elements.jumpHost.value !== selectedValue) {
+          var current = document.createElement("option");
+          current.value = selectedValue;
+          current.textContent = selectedValue;
+          elements.jumpHost.appendChild(current);
+          elements.jumpHost.value = selectedValue;
+        }
+        elements.jumpHostNote.textContent = state.servers.length < 2
+          ? "先添加另一台服务器，才能用它做跳板机。"
+          : "";
+      }
+
+      function clearErrors() {
+        ["serverName", "host", "port", "user", "keyPath", "timeout", "reconnectInterval"].forEach(function (id) {
+          var input = document.getElementById(id);
+          var note = document.getElementById(id + "Error");
+          if (input) input.removeAttribute("aria-invalid");
+          if (note) {
+            note.textContent = "";
+            note.classList.remove("error");
+          }
+        });
+        elements.password.removeAttribute("aria-invalid");
+        elements.passwordNote.classList.remove("error");
+        elements.passwordNote.textContent = state.detail && state.detail.secrets && state.detail.secrets.password
+          ? "密码已设置，留空不会修改。"
+          : "已保存的密码不会显示。";
+      }
+
+      function setFieldError(id, message) {
+        var input = document.getElementById(id);
+        var note = document.getElementById(id + "Error");
+        if (input) input.setAttribute("aria-invalid", "true");
+        if (note) {
+          note.textContent = message;
+          note.classList.add("error");
+        }
+      }
+
+      function showForm() {
+        elements.loading.hidden = true;
+        elements.form.hidden = false;
+      }
+
+      function showLoading(text) {
+        elements.form.hidden = true;
+        elements.loading.hidden = false;
+        elements.loading.textContent = text || "正在读取配置…";
+      }
+
+      function resetDeleteState() {
+        state.deleteArmed = false;
+        elements.deleteButton.textContent = "删除服务器";
+        elements.deleteButton.classList.remove("armed");
+        elements.cancelDeleteButton.hidden = true;
+      }
+
+      function populateForm(detail) {
+        var server = detail && detail.server || {};
+        var secrets = detail && detail.secrets || {};
+        state.detail = detail || { server: {}, secrets: {} };
+        clearErrors();
+        resetDeleteState();
+
+        elements.formTitle.textContent = state.isNew ? "新建服务器" : (server.name || state.selected);
+        elements.inheritTag.hidden = !detail || !detail.inherited;
+        elements.serverName.disabled = !state.isNew;
+        setValue(elements.serverName, state.isNew ? "" : state.selected);
+        setValue(elements.displayName, server.name);
+        setValue(elements.host, server.host);
+        setValue(elements.port, server.port, 22);
+        setValue(elements.user, server.user);
+        setValue(elements.password, "");
+        setValue(elements.keyPath, server.key);
+        setValue(elements.keyPassword, "");
+        setValue(
+          elements.shell,
+          ["bash", "powershell", "cmd"].includes(server.shell) ? server.shell : "bash"
+        );
+        setValue(elements.timeout, server.timeout, 30);
+        setValue(elements.group, server.group);
+        setValue(elements.system, server.system);
+        setValue(elements.scriptsDir, server.scripts_dir);
+        setValue(elements.scriptsLocalDir, server.scripts_local_dir);
+        elements.autoReconnect.checked = server.auto_reconnect !== false;
+        elements.reconnectInterval.disabled = !elements.autoReconnect.checked;
+        setValue(elements.reconnectInterval, server.reconnect_interval, 5);
+        setValue(elements.sudoPassword, "");
+        setValue(elements.description, server.desc);
+
+        elements.passwordSaved.hidden = !secrets.password;
+        elements.keyPasswordSaved.hidden = !secrets.key_password;
+        elements.sudoPasswordSaved.hidden = !secrets.sudo_password;
+        elements.password.placeholder = secrets.password ? "留空不修改" : "";
+        elements.keyPassword.placeholder = secrets.key_password ? "留空不修改" : "";
+        elements.sudoPassword.placeholder = secrets.sudo_password ? "留空不修改" : "";
+        elements.passwordNote.textContent = secrets.password
+          ? "密码已设置，留空不会修改。"
+          : "已保存的密码不会显示。";
+
+        setAuthMode(
+          state.isNew ? "password" : (server.key ? "key" : (secrets.password ? "password" : "agent"))
+        );
+        renderJumpOptions(server.jump_host);
+        elements.deleteButton.hidden = state.isNew;
+        elements.moreSettings.open = false;
+        showForm();
+      }
+
+      function startNew(force) {
+        if (state.busy && force !== true) return;
+        state.isNew = true;
+        state.selected = null;
+        state.detail = null;
+        renderList();
+        populateForm({ server: {}, secrets: {}, inherited: false });
+        elements.serverName.focus();
+        rememberSelection();
+      }
+
+      async function selectServer(name, force) {
+        if (!name || (state.busy && force !== true)) return;
+        state.isNew = false;
+        state.selected = name;
+        state.detail = null;
+        var token = ++state.loadToken;
+        renderList();
+        showLoading("正在读取配置…");
+        rememberSelection();
+
+        try {
+          var result = await callTool("ssh_get_server_config", { server: name });
+          var failure = resultError(result);
+          if (failure) throw failure;
+          if (token !== state.loadToken) return;
+          var detail = extractPayload(result);
+          if (!detail || !detail.server) throw new Error("读取配置失败");
+          populateForm(detail);
+        } catch (error) {
+          if (token !== state.loadToken) return;
+          showLoading(humanError(error));
+          showToast(humanError(error), true);
+        }
+      }
+
+      function applyServerList(payload, preferredName) {
+        if (!payload || !Array.isArray(payload.servers)) return;
+        state.receivedInitialData = true;
+        state.servers = payload.servers;
+        renderList();
+
+        var savedState = window.openai && window.openai.widgetState;
+        var remembered = savedState && savedState.selectedId;
+        var nextName = preferredName || state.selected || remembered;
+        var exists = state.servers.some(function (server) {
+          return server.name === nextName && !server.error;
+        });
+
+        if (exists) {
+          return selectServer(nextName, true);
+        }
+
+        var first = state.servers.find(function (server) {
+          return !server.error;
+        });
+        if (first) return selectServer(first.name, true);
+        return startNew(true);
+      }
+
+      async function refreshServers(preferredName) {
+        var result = await callTool("ssh_list_servers", {});
+        var failure = resultError(result);
+        if (failure) throw failure;
+        var payload = extractPayload(result);
+        if (!payload || !Array.isArray(payload.servers)) {
+          throw new Error("刷新服务器列表失败");
+        }
+        await applyServerList(payload, preferredName);
+      }
+
+      function validateForm() {
+        clearErrors();
+        var valid = true;
+        var configName = elements.serverName.value.trim();
+        var host = elements.host.value.trim();
+        var user = elements.user.value.trim();
+        var port = Number(elements.port.value);
+        var timeout = Number(elements.timeout.value);
+        var reconnect = Number(elements.reconnectInterval.value);
+
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(configName)) {
+          setFieldError("serverName", "只能用字母、数字、点、横线和下划线。");
+          valid = false;
+        }
+        if (!host) {
+          setFieldError("host", "请填写服务器地址。");
+          valid = false;
+        }
+        if (!user) {
+          setFieldError("user", "请填写用户名。");
+          valid = false;
+        }
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+          setFieldError("port", "端口应为 1 到 65535。");
+          valid = false;
+        }
+        if (!Number.isFinite(timeout) || timeout <= 0) {
+          setFieldError("timeout", "超时必须大于 0。");
+          valid = false;
+          elements.moreSettings.open = true;
+        }
+        if (!Number.isFinite(reconnect) || reconnect < 0) {
+          setFieldError("reconnectInterval", "重连间隔不能小于 0。");
+          valid = false;
+          elements.moreSettings.open = true;
+        }
+
+        var secrets = state.detail && state.detail.secrets || {};
+        if (currentAuthMode() === "password") {
+          if (!elements.password.value && !secrets.password) {
+            setFieldError("password", "请填写密码。");
+            elements.password.setAttribute("aria-invalid", "true");
+            elements.passwordNote.textContent = "请填写密码。";
+            elements.passwordNote.classList.add("error");
+            valid = false;
+          }
+        } else if (currentAuthMode() === "key" && !elements.keyPath.value.trim()) {
+          setFieldError("keyPath", "请填写私钥路径。");
+          valid = false;
+        }
+
+        if (!valid) {
+          var firstInvalid = elements.form.querySelector('[aria-invalid="true"]');
+          if (firstInvalid) firstInvalid.focus();
+        }
+        return valid;
+      }
+
+      function buildServerConfig() {
+        var configName = elements.serverName.value.trim();
+        var server = {
+          host: elements.host.value.trim(),
+          port: Number(elements.port.value),
+          user: elements.user.value.trim(),
+          name: elements.displayName.value.trim() || configName,
+          desc: elements.description.value.trim(),
+          group: elements.group.value.trim() || configName,
+          system: elements.system.value.trim(),
+          shell: elements.shell.value,
+          timeout: Number(elements.timeout.value),
+          auto_reconnect: elements.autoReconnect.checked,
+          reconnect_interval: Number(elements.reconnectInterval.value),
+          scripts_local_dir: elements.scriptsLocalDir.value.trim() || null,
+          jump_host: elements.jumpHost.value || null
+        };
+
+        if (elements.scriptsDir.value.trim()) {
+          server.scripts_dir = elements.scriptsDir.value.trim();
+        }
+
+        if (currentAuthMode() === "password") {
+          server.key = null;
+          server.key_password = null;
+          if (elements.password.value) server.password = elements.password.value;
+        } else if (currentAuthMode() === "key") {
+          server.password = null;
+          server.key = elements.keyPath.value.trim();
+          if (elements.keyPassword.value) server.key_password = elements.keyPassword.value;
+        } else {
+          server.password = null;
+          server.key = null;
+          server.key_password = null;
+        }
+
+        if (elements.sudoPassword.value) {
+          server.sudo_password = elements.sudoPassword.value;
+        }
+
+        return { server: server };
+      }
+
+      async function saveServer(event) {
+        event.preventDefault();
+        if (state.busy || !validateForm()) return;
+
+        var name = elements.serverName.value.trim().toLowerCase();
+        var config = buildServerConfig();
+        setBusy(true, "保存中…");
+        try {
+          var result = state.isNew
+            ? await callTool("ssh_ui_create_server", { server: name, config: config })
+            : await callTool("ssh_ui_update_server", {
+                server: state.selected,
+                config: config,
+                replace: false
+              });
+          var failure = resultError(result);
+          if (failure) throw failure;
+          showToast("已保存");
+          state.isNew = false;
+          state.selected = name;
+          await refreshServers(name);
+        } catch (error) {
+          showToast(humanError(error), true);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function deleteServer() {
+        if (state.busy || state.isNew || !state.selected) return;
+        if (!state.deleteArmed) {
+          state.deleteArmed = true;
+          elements.deleteButton.textContent = "确认删除";
+          elements.deleteButton.classList.add("armed");
+          elements.cancelDeleteButton.hidden = false;
+          return;
+        }
+
+        var deletedName = state.selected;
+        setBusy(true, "请稍候…");
+        try {
+          var result = await callTool("ssh_ui_delete_server", { server: deletedName });
+          var failure = resultError(result);
+          if (failure) throw failure;
+          state.selected = null;
+          state.detail = null;
+          showToast("已删除 " + deletedName);
+          await refreshServers(null);
+        } catch (error) {
+          showToast(humanError(error), true);
+        } finally {
+          setBusy(false);
+          resetDeleteState();
+        }
+      }
+
+      window.addEventListener("message", function (event) {
+        if (event.source !== window.parent) return;
+        var message = event.data;
+        if (!message || message.jsonrpc !== "2.0") return;
+        bridgeReady = true;
+
+        if (message.id !== undefined && pendingRequests.has(message.id)) {
+          var pending = pendingRequests.get(message.id);
+          pendingRequests.delete(message.id);
+          if (message.error) pending.reject(message.error);
+          else pending.resolve(message.result);
+          return;
+        }
+
+        if (message.method === "ui/notifications/tool-result") {
+          var payload = extractPayload(message.params);
+          if (payload && Array.isArray(payload.servers)) {
+            applyServerList(payload);
+          }
+        }
+      }, { passive: true });
+
+      document.querySelectorAll('input[name="authMode"]').forEach(function (radio) {
+        radio.addEventListener("change", updateAuthFields);
+      });
+      elements.newButton.addEventListener("click", startNew);
+      elements.form.addEventListener("submit", saveServer);
+      elements.deleteButton.addEventListener("click", deleteServer);
+      elements.cancelDeleteButton.addEventListener("click", resetDeleteState);
+      elements.autoReconnect.addEventListener("change", function () {
+        elements.reconnectInterval.disabled = !elements.autoReconnect.checked;
+      });
+
+      var legacyPayload = extractPayload(window.openai && window.openai.toolOutput);
+      if (legacyPayload && Array.isArray(legacyPayload.servers)) {
+        applyServerList(legacyPayload);
+      } else {
+        window.setTimeout(function () {
+          if (state.receivedInitialData) return;
+          refreshServers(null).catch(function (error) {
+            showLoading("无法读取配置");
+            showToast(humanError(error), true);
+          });
+        }, 300);
+      }
+    }());
+  </script>
+</body>
+</html>

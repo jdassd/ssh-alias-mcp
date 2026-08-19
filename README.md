@@ -6,6 +6,7 @@ AI-driven server operations tool. Configure servers in YAML, execute commands, d
 
 ## ✨ Highlights
 
+- **Built-in configuration UI** — Add, edit, and delete multiple servers in the conversation
 - **One config, three shells** — `bash`, `cmd`, `powershell` auto-adapted via command templates
 - **SSH jump hosts** — Reach private targets through a named bastion config using `direct-tcpip`
 - **Alias system** — One YAML line = one AI skill, auto-exposed as MCP tools
@@ -22,6 +23,8 @@ python cli.py my-server run "uptime"
 python cli.py my-server alias deploy
 ```
 
+Ask the agent to “open SSH server settings” to show the configuration UI.
+
 ## Documentation
 
 - [SKILL.md](SKILL.md) — AI Agent skill definition (MCP tools, quick reference)
@@ -31,7 +34,7 @@ python cli.py my-server alias deploy
 
 ## Agent Setup in One Sentence (Copy It To Your Agents)
 
-Read https://github.com/leehom0123/ssh-alias-mcp/blob/main/INSTALL.md — set up the SKILL and install the MCP service as described.
+Read https://github.com/jdassd/ssh-alias-mcp/blob/main/INSTALL.md — set up the SKILL and install the MCP service as described.
 
 ## Real-World Scenarios
 
@@ -87,4 +90,4 @@ server:
 
 ## Links
 
-- [GitHub](https://github.com/leehom0123/ssh-alias-mcp)
+- [GitHub](https://github.com/jdassd/ssh-alias-mcp)

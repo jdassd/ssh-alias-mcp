@@ -93,9 +93,22 @@ def load_global_config() -> dict:
 
 global_config: dict = load_global_config()
 
-# servers_dir can be configured in config.yaml (absolute or relative to config file)
-_servers_dir_cfg = _normalize_path(global_config.get("servers_dir", "servers"))
-SERVERS_DIR = (CONFIG_PATH.parent / _servers_dir_cfg).resolve() if _servers_dir_cfg else SCRIPT_DIR / "servers"
+# Codex provides CLAUDE_PLUGIN_DATA as a stable, writable directory for each
+# installed plugin.  The MCP launcher maps it to SSH_ALIAS_MCP_DATA_DIR so
+# server profiles survive plugin upgrades.  Direct source/CLI usage keeps the
+# existing config.yaml behavior for backwards compatibility.
+_plugin_data_dir_cfg = _normalize_path(os.environ.get("SSH_ALIAS_MCP_DATA_DIR", "").strip())
+if _plugin_data_dir_cfg:
+    _plugin_data_dir = Path(os.path.expandvars(os.path.expanduser(_plugin_data_dir_cfg)))
+    SERVERS_DIR = (_plugin_data_dir / "servers").resolve()
+else:
+    # servers_dir can be configured in config.yaml (absolute or relative to config file)
+    _servers_dir_cfg = _normalize_path(global_config.get("servers_dir", "servers"))
+    SERVERS_DIR = (
+        (CONFIG_PATH.parent / _servers_dir_cfg).resolve()
+        if _servers_dir_cfg
+        else SCRIPT_DIR / "servers"
+    )
 
 
 # Command templates keyed by shell type.
@@ -1003,6 +1016,50 @@ class ConnectionPool:
             )
             self._pool[key] = conn
             return conn
+
+    def get_server_config(self, server_name: str) -> dict:
+        """Return editable server fields without exposing stored secrets."""
+        key, config_path = self._config_target(server_name)
+        if not config_path.exists():
+            raise FileNotFoundError(f"Server config not found: {config_path}")
+
+        raw = load_yaml(str(config_path))
+        resolved = self._load_config(key)
+        server = resolved.get("server", {})
+        if not isinstance(server, dict):
+            server = {}
+        editable_fields = (
+            "host",
+            "port",
+            "user",
+            "key",
+            "name",
+            "desc",
+            "group",
+            "system",
+            "timeout",
+            "auto_reconnect",
+            "reconnect_interval",
+            "scripts_dir",
+            "scripts_local_dir",
+            "shell",
+            "jump_host",
+        )
+        safe_server = {
+            field: server[field]
+            for field in editable_fields
+            if field in server
+        }
+        return {
+            "name": key,
+            "server": safe_server,
+            "secrets": {
+                "password": bool(server.get("password")),
+                "key_password": bool(server.get("key_password")),
+                "sudo_password": bool(server.get("sudo_password")),
+            },
+            "inherited": bool(raw.get("extends")),
+        }
 
     def create_server(self, server_name: str, config: dict) -> dict:
         """Create a server YAML file without overwriting an existing config."""

@@ -9,6 +9,7 @@ import re
 import sys
 from dataclasses import dataclass
 from hashlib import sha1
+from pathlib import Path
 from typing import Callable, Dict, Tuple
 
 # Force UTF-8 output on Windows. stdout must contain only MCP JSON messages.
@@ -22,7 +23,7 @@ from ssh_client import pool
 SERVER_INFO = {
     "name": "ssh-alias-mcp",
     "title": "SSH Alias MCP",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Run configured SSH commands, scripts, aliases, uploads, and downloads.",
 }
 SUPPORTED_PROTOCOL_VERSIONS = [
@@ -34,6 +35,7 @@ SUPPORTED_PROTOCOL_VERSIONS = [
 LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0]
 MCP_INSTRUCTIONS = (
     "Use ssh_list_servers first to discover configured servers. "
+    "Use ssh_open_config when the user wants to manage server settings in the UI. "
     "Use ssh_list_aliases before ssh_run_alias unless you already know the alias name. "
     "Server config create, update, copy, and delete tools modify local YAML files. "
     "Commands, uploads, downloads, and aliases can modify remote systems."
@@ -41,11 +43,79 @@ MCP_INSTRUCTIONS = (
 TOOL_NAME_MAX_LENGTH = 128
 SECRET_FIELDS = {
     "password",
+    "key_password",
     "passphrase",
     "private_key",
     "private_key_path",
     "proxy_password",
     "sudo_password",
+}
+CONFIG_UI_URI = "ui://ssh-alias-mcp/config-v1.html"
+CONFIG_UI_MIME_TYPE = "text/html;profile=mcp-app"
+CONFIG_UI_PATH = Path(__file__).resolve().parent / "ui" / "config.html"
+CONFIG_UI_TOOL_META = {
+    "ui": {
+        "resourceUri": CONFIG_UI_URI,
+        "visibility": ["model", "app"],
+    },
+    "openai/outputTemplate": CONFIG_UI_URI,
+    "openai/widgetAccessible": True,
+    "openai/toolInvocation/invoking": "正在打开配置",
+    "openai/toolInvocation/invoked": "配置已打开",
+}
+APP_ONLY_TOOL_META = {
+    "ui": {"visibility": ["app"]},
+    "openai/visibility": "private",
+    "openai/widgetAccessible": True,
+}
+APP_CALLABLE_TOOL_META = {
+    "ui": {"visibility": ["model", "app"]},
+    "openai/widgetAccessible": True,
+}
+SERVER_LIST_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "count": {"type": "integer"},
+        "servers": {
+            "type": "array",
+            "items": {"type": "object", "additionalProperties": True},
+        },
+    },
+    "required": ["count", "servers"],
+    "additionalProperties": False,
+}
+CONFIG_VIEW_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "view": {"type": "string", "enum": ["server-config"]},
+        "count": {"type": "integer"},
+        "servers": {
+            "type": "array",
+            "items": {"type": "object", "additionalProperties": True},
+        },
+    },
+    "required": ["view", "count", "servers"],
+    "additionalProperties": False,
+}
+SERVER_CONFIG_OUTPUT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "server": {"type": "object", "additionalProperties": True},
+        "secrets": {
+            "type": "object",
+            "properties": {
+                "password": {"type": "boolean"},
+                "key_password": {"type": "boolean"},
+                "sudo_password": {"type": "boolean"},
+            },
+            "required": ["password", "key_password", "sudo_password"],
+            "additionalProperties": False,
+        },
+        "inherited": {"type": "boolean"},
+    },
+    "required": ["name", "server", "secrets", "inherited"],
+    "additionalProperties": False,
 }
 
 
@@ -72,6 +142,8 @@ class ToolSpec:
     args: Tuple[ArgSpec, ...]
     annotations: dict
     handler: Callable[[dict], dict]
+    meta: dict = None
+    output_schema: dict = None
 
     def tool(self) -> dict:
         input_schema = {
@@ -83,13 +155,18 @@ class ToolSpec:
             required = [arg.name for arg in self.args if arg.required]
             if required:
                 input_schema["required"] = required
-        return {
+        descriptor = {
             "name": self.name,
             "title": self.title,
             "description": self.description,
             "inputSchema": input_schema,
             "annotations": self.annotations,
         }
+        if self.meta:
+            descriptor["_meta"] = self.meta
+        if self.output_schema:
+            descriptor["outputSchema"] = self.output_schema
+        return descriptor
 
 
 class McpProtocolError(Exception):
@@ -100,8 +177,11 @@ class McpProtocolError(Exception):
         self.data = data
 
 
-def mcp_result(content: list, is_error: bool = False) -> dict:
-    return {"content": content, "isError": is_error}
+def mcp_result(content: list, is_error: bool = False, structured_content=None) -> dict:
+    result = {"content": content, "isError": is_error}
+    if structured_content is not None:
+        result["structuredContent"] = structured_content
+    return result
 
 
 def mcp_text(text: str, is_error: bool = False) -> dict:
@@ -200,6 +280,8 @@ def _alias_tool_specs() -> Dict[str, ToolSpec]:
     specs = {}
     used = set()
     for sv in pool.list_servers():
+        if sv.get("error"):
+            continue
         server = sv["name"]
         conn = pool.get(server)
         for alias in conn.list_aliases():
@@ -271,8 +353,11 @@ def _with_execution_summary(result: dict, lines: list) -> dict:
     return output
 
 
-def _json_text(payload: dict) -> dict:
-    return mcp_text(json.dumps(payload, indent=2, ensure_ascii=False))
+def _json_text(payload: dict, structured: bool = False) -> dict:
+    content = [{"type": "text", "text": json.dumps(payload, indent=2, ensure_ascii=False)}]
+    if structured:
+        return mcp_result(content, structured_content=payload)
+    return mcp_result(content)
 
 
 def _server_conn(args: dict):
@@ -349,7 +434,20 @@ def _handle_ssh_list_scripts(args: dict) -> dict:
 
 def _handle_ssh_list_servers(args: dict) -> dict:
     servers = pool.list_servers()
-    return _json_text({"count": len(servers), "servers": servers})
+    return _json_text({"count": len(servers), "servers": servers}, structured=True)
+
+
+def _handle_ssh_open_config(args: dict) -> dict:
+    servers = pool.list_servers()
+    return _json_text({
+        "view": "server-config",
+        "count": len(servers),
+        "servers": servers,
+    }, structured=True)
+
+
+def _handle_ssh_get_server_config(args: dict) -> dict:
+    return _json_text(pool.get_server_config(args["server"]), structured=True)
 
 
 def _handle_ssh_create_server(args: dict) -> dict:
@@ -453,6 +551,80 @@ TIMEOUT_300_ARG = _arg("timeout", "number", "Timeout in seconds", default=300)
 
 
 STATIC_TOOLS = {
+    "ssh_open_config": ToolSpec(
+        name="ssh_open_config",
+        title="配置 SSH 服务器",
+        description="打开服务器配置界面。",
+        args=(),
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "openWorldHint": False,
+        },
+        handler=_handle_ssh_open_config,
+        meta=CONFIG_UI_TOOL_META,
+        output_schema=CONFIG_VIEW_OUTPUT_SCHEMA,
+    ),
+    "ssh_get_server_config": ToolSpec(
+        name="ssh_get_server_config",
+        title="读取 SSH 服务器配置",
+        description="读取可编辑配置。不会返回密码。",
+        args=(SERVER_ARG,),
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "openWorldHint": False,
+        },
+        handler=_handle_ssh_get_server_config,
+        meta=APP_ONLY_TOOL_META,
+        output_schema=SERVER_CONFIG_OUTPUT_SCHEMA,
+    ),
+    "ssh_ui_create_server": ToolSpec(
+        name="ssh_ui_create_server",
+        title="保存新服务器",
+        description="从配置界面保存新服务器。",
+        args=(
+            SERVER_ARG,
+            _arg("config", "object", "Complete server configuration object", required=True),
+        ),
+        annotations={
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "openWorldHint": False,
+        },
+        handler=_handle_ssh_create_server,
+        meta=APP_ONLY_TOOL_META,
+    ),
+    "ssh_ui_update_server": ToolSpec(
+        name="ssh_ui_update_server",
+        title="保存服务器修改",
+        description="从配置界面保存服务器修改。",
+        args=(
+            SERVER_ARG,
+            _arg("config", "object", "Configuration patch or complete replacement", required=True),
+            _arg("replace", "boolean", "Replace the full config instead of merging", default=False),
+        ),
+        annotations={
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "openWorldHint": False,
+        },
+        handler=_handle_ssh_update_server,
+        meta=APP_ONLY_TOOL_META,
+    ),
+    "ssh_ui_delete_server": ToolSpec(
+        name="ssh_ui_delete_server",
+        title="删除服务器",
+        description="从配置界面删除服务器。",
+        args=(SERVER_ARG,),
+        annotations={
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "openWorldHint": False,
+        },
+        handler=_handle_ssh_delete_server,
+        meta=APP_ONLY_TOOL_META,
+    ),
     "ssh_create_server": ToolSpec(
         name="ssh_create_server",
         title="Create SSH Server",
@@ -550,8 +722,14 @@ STATIC_TOOLS = {
         title="List SSH Servers",
         description="List all available server configurations.",
         args=(),
-        annotations={"readOnlyHint": True},
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "openWorldHint": False,
+        },
         handler=_handle_ssh_list_servers,
+        meta=APP_CALLABLE_TOOL_META,
+        output_schema=SERVER_LIST_OUTPUT_SCHEMA,
     ),
     "ssh_download": ToolSpec(
         name="ssh_download",
@@ -624,6 +802,40 @@ def _build_tools_list() -> list:
     return [spec.tool() for spec in _tool_specs().values()]
 
 
+def _build_resources_list() -> list:
+    return [{
+        "uri": CONFIG_UI_URI,
+        "name": "ssh-server-config",
+        "title": "SSH 服务器配置",
+        "description": "添加、修改和删除服务器配置。",
+        "mimeType": CONFIG_UI_MIME_TYPE,
+    }]
+
+
+def _read_resource(uri: str) -> dict:
+    if uri != CONFIG_UI_URI:
+        raise McpProtocolError(-32602, f"Unknown resource: {uri}")
+    try:
+        html = CONFIG_UI_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise McpProtocolError(-32603, "Configuration UI file is missing") from exc
+    return {
+        "contents": [{
+            "uri": CONFIG_UI_URI,
+            "mimeType": CONFIG_UI_MIME_TYPE,
+            "text": html,
+            "_meta": {
+                "ui": {
+                    "prefersBorder": False,
+                    "csp": {"connectDomains": [], "resourceDomains": []},
+                },
+                "openai/widgetPrefersBorder": False,
+                "openai/widgetDescription": "管理 SSH 服务器连接配置。",
+            },
+        }],
+    }
+
+
 def _negotiate_protocol_version(params: dict) -> str:
     requested = params.get("protocolVersion")
     if requested in SUPPORTED_PROTOCOL_VERSIONS:
@@ -651,10 +863,25 @@ def handle_request(req: dict):
     if method == "initialize":
         return jsonrpc_result(req_id, {
             "protocolVersion": _negotiate_protocol_version(params),
-            "capabilities": {"tools": {"listChanged": False}},
+            "capabilities": {
+                "tools": {"listChanged": False},
+                "resources": {"subscribe": False, "listChanged": False},
+            },
             "serverInfo": SERVER_INFO,
             "instructions": MCP_INSTRUCTIONS,
         })
+
+    if method == "resources/list":
+        cursor = params.get("cursor")
+        if cursor not in (None, ""):
+            raise McpProtocolError(-32602, "Invalid or expired pagination cursor")
+        return jsonrpc_result(req_id, {"resources": _build_resources_list()})
+
+    if method == "resources/read":
+        uri = params.get("uri")
+        if not isinstance(uri, str) or not uri:
+            raise McpProtocolError(-32602, "Missing or invalid resource URI")
+        return jsonrpc_result(req_id, _read_resource(uri))
 
     if method == "tools/list":
         cursor = params.get("cursor")

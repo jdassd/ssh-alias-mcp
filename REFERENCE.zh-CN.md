@@ -41,6 +41,7 @@
 │       ├── cli.py             # CLI 入口
 │       ├── mcp_server.py      # MCP stdio 服务器
 │       ├── ssh_client.py      # 核心模块（SSH 连接、代理、连接池）
+│       ├── ui/config.html     # 内嵌服务器配置界面
 │       ├── config.yaml        # 全局配置（servers_dir、代理、超时）
 │       └── requirements.txt   # Python 依赖
 │
@@ -438,6 +439,7 @@ free -h
 | | Sudo 别名 | 以 root 权限执行 | `aliases[].sudo: true` |
 | | 继承 | 通过 `extends` 共享别名 | `extends: [_shared/common.yml]` |
 | **MCP 工具** | 动态工具 | 每个别名自动暴露为 `ssh_alias.server.name` | 运行时自动生成 |
+| | 配置界面 | 管理多台服务器，不读取已保存的密码 | `ssh_open_config` |
 | | 工具发现 | `ssh_list_servers` / `ssh_list_aliases` | 静态工具 |
 | | 读写标记 | 工具标记 readOnly/destructive | 自动设置 |
 | **安全** | 命令黑名单 | 正则表达式阻止命令 | `server.blacklist` |

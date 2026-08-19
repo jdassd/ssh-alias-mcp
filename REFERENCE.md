@@ -38,6 +38,7 @@
 │       ├── cli.py             # CLI entry point
 │       ├── mcp_server.py      # MCP stdio server
 │       ├── ssh_client.py      # Core module (SSH connection, proxy, pool)
+│       ├── ui/config.html     # Embedded server configuration UI
 │       ├── config.yaml        # Global config (servers_dir, proxy, timeout)
 │       └── requirements.txt   # Python dependencies
 │
@@ -438,6 +439,7 @@ free -h
 | | Sudo alias | Execute with root privileges | `aliases[].sudo: true` |
 | | Inheritance | Share aliases via `extends` | `extends: [_shared/common.yml]` |
 | **MCP Tools** | Dynamic tools | Each alias auto-exposed as `ssh_alias.server.name` | Auto-generated at runtime |
+| | Configuration UI | Manage multiple servers without reading stored passwords | `ssh_open_config` |
 | | Tool discovery | `ssh_list_servers` / `ssh_list_aliases` | Static tools |
 | | Read/write markers | Tools marked readOnly/destructive | Auto-set |
 | **Security** | Command blacklist | Regex pattern blocks commands | `server.blacklist` |

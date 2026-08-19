@@ -8,17 +8,17 @@ Clone directly into your agent's skills directory:
 
 **Claude Code:**
 ```bash
-git clone https://github.com/leehom0123/ssh-alias-mcp.git ~/.claude/skills/ssh-alias-mcp
+git clone https://github.com/jdassd/ssh-alias-mcp.git ~/.claude/skills/ssh-alias-mcp
 ```
 
 **Codex CLI:**
 ```bash
-git clone https://github.com/leehom0123/ssh-alias-mcp.git ~/.codex/skills/ssh-alias-mcp
+git clone https://github.com/jdassd/ssh-alias-mcp.git ~/.codex/skills/ssh-alias-mcp
 ```
 
 **OpenCode:**
 ```bash
-git clone https://github.com/leehom0123/ssh-alias-mcp.git ~/.opencode/skills/ssh-alias-mcp
+git clone https://github.com/jdassd/ssh-alias-mcp.git ~/.opencode/skills/ssh-alias-mcp
 ```
 
 Requires: Python ≥ 3.9
@@ -73,6 +73,7 @@ python <skills-dir>/ssh-alias-mcp/cli.py list-servers
 If `servers/` already contains `.yml` configs, the CLI will list them. An empty list is fine too.
 
 The following MCP tools should appear in your agent session:
+- `ssh_open_config`
 - `ssh_list_servers`
 - `ssh_run`
 - `ssh_upload_script`
@@ -86,7 +87,7 @@ The following MCP tools should appear in your agent session:
 
 ## 5. Add Servers
 
-Create `.yml` files under `servers/`. Minimal config:
+Ask the agent to open SSH server settings, or create `.yml` files under `servers/`. Minimal config:
 
 ```yaml
 server:

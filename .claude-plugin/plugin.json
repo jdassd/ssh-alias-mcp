@@ -1,13 +1,13 @@
 {
-  "name": "ssh-manager",
+  "name": "ssh-alias-mcp",
   "description": "Let AI agents manage Linux servers via SSH — run commands, deploy code, tail logs, restart services, and upload scripts. One YAML config, one connection pool, works for both AI and CLI.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "leehom0123",
     "url": "https://github.com/leehom0123"
   },
-  "homepage": "https://github.com/leehom0123/ssh-alias-mcp",
-  "repository": "https://github.com/leehom0123/ssh-alias-mcp",
+  "homepage": "https://github.com/jdassd/ssh-alias-mcp",
+  "repository": "https://github.com/jdassd/ssh-alias-mcp",
   "license": "MIT",
   "tags": ["ssh", "devops", "server-management", "linux", "remote"],
   "category": "devops"

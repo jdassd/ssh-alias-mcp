@@ -6,6 +6,7 @@ AI 驱动的服务器运维工具。YAML 配置服务器，执行命令、部署
 
 ## ✨ 亮点
 
+- **内嵌配置界面** — 直接添加、修改、删除多台服务器
 - **一套配置，三种 Shell** — `bash`、`cmd`、`powershell` 通过命令模板自动适配
 - **SSH 跳板机** — 通过命名的堡垒机配置和 `direct-tcpip` 访问内网目标机
 - **Alias 系统** — 一行 YAML = 一个 AI 技能，自动暴露为 MCP 工具
@@ -22,6 +23,8 @@ python cli.py my-server run "uptime"
 python cli.py my-server alias deploy
 ```
 
+在对话中说“打开 SSH 服务器配置”，即可打开配置界面。
+
 ## 文档
 
 - [SKILL.md](SKILL.md) — AI Agent 技能定义（MCP 工具、快速参考）
@@ -31,7 +34,7 @@ python cli.py my-server alias deploy
 
 ## 一句话 Agent 安装（把下面这句话复制给你的 Agent）
 
-安装请阅读 https://github.com/leehom0123/ssh-alias-mcp/blob/main/INSTALL.zh-CN.md，按说明配置好 SKILL 及安装 MCP 服务。
+安装请阅读 https://github.com/jdassd/ssh-alias-mcp/blob/main/INSTALL.zh-CN.md，按说明配置好 SKILL 及安装 MCP 服务。
 
 ## 使用场景
 
@@ -87,4 +90,4 @@ server:
 
 ## 链接
 
-- [GitHub](https://github.com/leehom0123/ssh-alias-mcp)
+- [GitHub](https://github.com/jdassd/ssh-alias-mcp)

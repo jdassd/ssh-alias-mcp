@@ -8,17 +8,17 @@
 
 **Claude Code：**
 ```bash
-git clone https://github.com/leehom0123/ssh-alias-mcp.git ~/.claude/skills/ssh-alias-mcp
+git clone https://github.com/jdassd/ssh-alias-mcp.git ~/.claude/skills/ssh-alias-mcp
 ```
 
 **Codex CLI：**
 ```bash
-git clone https://github.com/leehom0123/ssh-alias-mcp.git ~/.codex/skills/ssh-alias-mcp
+git clone https://github.com/jdassd/ssh-alias-mcp.git ~/.codex/skills/ssh-alias-mcp
 ```
 
 **OpenCode：**
 ```bash
-git clone https://github.com/leehom0123/ssh-alias-mcp.git ~/.opencode/skills/ssh-alias-mcp
+git clone https://github.com/jdassd/ssh-alias-mcp.git ~/.opencode/skills/ssh-alias-mcp
 ```
 
 要求：Python ≥ 3.9
@@ -73,6 +73,7 @@ python <skills-dir>/ssh-alias-mcp/cli.py list-servers
 如果 `servers/` 目录已有 `.yml` 配置，CLI 会列出服务器信息。没有服务器配置文件也会正常运行，仅返回空列表。
 
 Agent 会话中应出现以下 MCP 工具：
+- `ssh_open_config`
 - `ssh_list_servers`
 - `ssh_run`
 - `ssh_upload_script`
@@ -86,7 +87,7 @@ Agent 会话中应出现以下 MCP 工具：
 
 ## 5. 添加服务器
 
-在 `servers/` 目录下创建 `.yml` 文件。最小配置：
+可以让 Agent“打开 SSH 服务器配置”，也可以在 `servers/` 目录下创建 `.yml` 文件。最小配置：
 
 ```yaml
 server:
