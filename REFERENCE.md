@@ -16,6 +16,7 @@
 ┌──────────────▼───────────────────────────────────────┐
 │  ssh_client.py  (Shared core)                        │
 │  ├── ConnectionPool (connection reuse, 60s keepalive)│
+│  ├── SSH jump host forwarding (direct-tcpip)         │
 │  ├── SOCKS5 proxy + direct auto-fallback             │
 │  └── SFTP script upload & download                   │
 └──────────────┬───────────────────────────────────────┘
@@ -109,6 +110,9 @@ server:
   shell: "bash"                  # Shell type (bash / cmd / powershell, default bash)
   system: "Ubuntu 24.04 LTS"    # OS information
 
+  # SSH jump host (optional; references another server config by name)
+  # jump_host: "bastion-prod"
+
   # Server-level proxy override (optional, overrides global config.yaml)
   proxy:
     host: "127.0.0.1"
@@ -142,6 +146,41 @@ aliases:
     desc: "View logs"
     timeout: 10
 ```
+
+## SSH Jump Host (Bastion)
+
+Define the bastion and target as separate server configs. The target's
+`jump_host` value is the bastion file name without `.yml`:
+
+```yaml
+# servers/bastion-prod.yml
+server:
+  host: "203.0.113.10"
+  user: "ops"
+  key: "/home/me/.ssh/bastion_ed25519"
+```
+
+```yaml
+# servers/internal-app.yml
+server:
+  host: "10.0.0.20"
+  user: "deploy"
+  password: "target-password"
+  jump_host: "bastion-prod"
+```
+
+All CLI and MCP operations on `internal-app` first connect to `bastion-prod`,
+open an SSH `direct-tcpip` channel to `10.0.0.20:22`, and then establish the
+target SSH session over that channel. Bastion and target authentication remain
+separate; the target credentials are used only by the target SSH handshake.
+
+- One jump-host layer is supported. Self references, cycles, and a bastion that
+  also configures `jump_host` are rejected.
+- A target with `jump_host` cannot also set `server.proxy`. To use
+  SOCKS5 → bastion → target, configure the proxy on the bastion instead.
+- A failed jump-host connection never falls back to a direct target connection.
+- The bastion SSH server must permit TCP forwarding (for example,
+  `AllowTcpForwarding yes` in OpenSSH server configuration).
 
 ## Shared Alias Inheritance (`extends`)
 
@@ -375,6 +414,7 @@ free -h
 | **Connection** | Direct SSH | Connect to remote server | `server.host`, `server.port` |
 | | Password auth | Password login | `server.password` |
 | | Key auth | SSH key login (optional passphrase) | `server.key`, `server.key_password` |
+| | SSH jump host | Reach a target through one named bastion | `server.jump_host` |
 | | SOCKS5 proxy | Proxy first, auto-fallback to direct | `config.yaml` proxy / `server.proxy` |
 | | Connection pool | Auto-reuse, 60s keepalive | Global `pool.get(name)` |
 | **Command Execution** | `run()` | Execute command, optional sudo, real-time streaming | `ssh_run` / CLI `run -s` |

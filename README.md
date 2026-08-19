@@ -7,6 +7,7 @@ AI-driven server operations tool. Configure servers in YAML, execute commands, d
 ## ✨ Highlights
 
 - **One config, three shells** — `bash`, `cmd`, `powershell` auto-adapted via command templates
+- **SSH jump hosts** — Reach private targets through a named bastion config using `direct-tcpip`
 - **Alias system** — One YAML line = one AI skill, auto-exposed as MCP tools
 - **MCP + CLI** — Same config, same connection pool, shared by AI and humans
 

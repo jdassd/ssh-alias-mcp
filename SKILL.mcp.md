@@ -46,6 +46,7 @@ python cli.py <server> alias deploy
 - **sudo** — Use `ssh_run` with `sudo: true`, never inline `sudo -S` in commands
 - **Dynamic alias tools** — MCP exposes aliases as `ssh_alias.{server}.{name}`
 - **Live stream output** — For real-time streaming, use CLI. See [CLI_USAGE.md](CLI_USAGE.md)
+- **Jump host** — Set `server.jump_host` to another server config name; all MCP and CLI operations route through it automatically
 - **Docker build real-time output** — `docker build` uses buildkit JSON output by default. Add `--progress=plain` for real-time output. NEVER pipe to `tail` (e.g. `| tail -5`) as it buffers until command completes. Example: `docker build --progress=plain -t myimage .`
 
 ## Shell Support

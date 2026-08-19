@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """SSH Client - Core SSH connection module
 
-Supports direct connection, SOCKS5 proxy with auto-fallback, connection pool, and script upload/run.
+Supports direct connection, SSH jump hosts, SOCKS5 proxy with auto-fallback,
+connection pooling, and script upload/run.
 
 Usage:
 
@@ -166,10 +167,10 @@ CMD_TEMPLATES = {
 
 
 class SSHConnection:
-    """SSH connection wrapper — proxy/direct auto-fallback, script upload & execution, command execution"""
+    """SSH connection wrapper with direct, proxy, and jump-host transports."""
 
     def __init__(self, cfg: dict, aliases: list = None,
-                 yml_path: str = None):
+                 yml_path: str = None, connection_pool=None):
         self.host = cfg["host"]
         self.port = int(cfg.get("port", 22))
         self.user = cfg["user"]
@@ -199,6 +200,8 @@ class SSHConnection:
         self._tpl = CMD_TEMPLATES[self.shell]
         self.aliases = aliases or []
         self._yml_path = yml_path
+        self.jump_host = cfg.get("jump_host")
+        self._connection_pool = connection_pool
 
         # Security: command filtering
         self.whitelist = [re.compile(p) for p in cfg.get("whitelist", [])]
@@ -228,6 +231,8 @@ class SSHConnection:
         self._reconnect_wakeup = threading.Event()
         self._reconnect_thread: Optional[threading.Thread] = None
         self._closed = False
+        self._jump_connection = None
+        self._jump_channel = None
 
     def connect(self):
         """Connect for an explicit request, bypassing any reconnect cooldown."""
@@ -245,7 +250,15 @@ class SSHConnection:
             self._reconnect_wakeup.set()
 
     def _connect_once(self):
-        """Perform one proxy/direct connection cycle."""
+        """Perform one configured connection cycle."""
+        self._close_target_connection()
+
+        # A jump host is an explicit routing requirement. Never bypass it by
+        # falling back to a direct connection to the target.
+        if self.jump_host:
+            self._connect_via_jump()
+            return
+
         # Dynamically reload proxy config
         current_proxy_cfg = load_global_config().get("proxy", {})
         if current_proxy_cfg.get("enabled"):
@@ -259,10 +272,6 @@ class SSHConnection:
             proxy = self.proxy
         else:
             proxy = None
-
-        if self._client:
-            self._client.close()
-            self._client = None
 
         # Check pysocks availability
         if proxy:
@@ -342,6 +351,80 @@ class SSHConnection:
                     continue
                 self._connect_failures = 0
                 return
+
+    def _close_target_connection(self):
+        """Close the target client and its forwarding channel, not the shared jump host."""
+        client = self._client
+        channel = self._jump_channel
+        self._client = None
+        self._jump_channel = None
+        self._jump_connection = None
+
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                pass
+        if channel is not None:
+            try:
+                channel.close()
+            except Exception:
+                pass
+
+    def _connect_via_jump(self):
+        """Connect to the target through one pooled SSH jump host."""
+        if self._connection_pool is None:
+            raise RuntimeError(
+                "jump_host connections must be created by ConnectionPool"
+            )
+
+        jump = self._connection_pool.get(self.jump_host)
+        jump.connect()
+        jump_transport = (
+            jump._client.get_transport()
+            if jump._client is not None
+            else None
+        )
+        if jump_transport is None or not jump_transport.is_active():
+            raise paramiko.SSHException(
+                f"Jump host connection is not active: {self.jump_host}"
+            )
+
+        channel = None
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            channel = jump_transport.open_channel(
+                "direct-tcpip",
+                dest_addr=(self.host, self.port),
+                src_addr=("127.0.0.1", 0),
+                timeout=self.timeout,
+            )
+            channel.settimeout(self.timeout)
+            client.connect(
+                hostname=self.host,
+                port=self.port,
+                username=self.user,
+                timeout=self.timeout,
+                sock=channel,
+                **self._get_auth(),
+            )
+            target_transport = client.get_transport()
+            if target_transport is None:
+                raise paramiko.SSHException("Target SSH transport was not created")
+            # The timeout protects target handshake/authentication. Restore the
+            # forwarding channel to blocking mode for a long-lived SSH transport.
+            channel.settimeout(None)
+            target_transport.set_keepalive(60)
+            self._jump_connection = jump
+            self._jump_channel = channel
+            self._client = client
+            self._last_used = time.time()
+        except Exception:
+            client.close()
+            if channel is not None:
+                channel.close()
+            raise
 
     def _connect_proxy_with(self, proxy: dict):
         """Connect via SOCKS5 proxy"""
@@ -887,9 +970,7 @@ class SSHConnection:
         with self._connect_lock:
             self._closed = True
             self._reconnect_wakeup.set()
-            if self._client:
-                self._client.close()
-                self._client = None
+            self._close_target_connection()
 
 
 class ConnectionPool:
@@ -904,13 +985,22 @@ class ConnectionPool:
         key = self._to_key(server_name)
         yml_path = self._resolve_config_path(key)
         data = self._load_config(key)
-        cfg = data["server"]
+        self._validate_server_config(data)
+        cfg = dict(data["server"])
+        jump_host = self._resolve_jump_host(key, cfg)
+        if jump_host:
+            cfg["jump_host"] = jump_host
         aliases = data.get("aliases", [])
         with self._lock:
             if key in self._pool:
                 conn = self._pool[key]
                 return conn
-            conn = SSHConnection(cfg, aliases, yml_path)
+            conn = SSHConnection(
+                cfg,
+                aliases,
+                yml_path,
+                connection_pool=self,
+            )
             self._pool[key] = conn
             return conn
 
@@ -982,6 +1072,32 @@ class ConnectionPool:
         key = name.lower()
         return key, SERVERS_DIR / f"{key}.yml"
 
+    def _resolve_jump_host(self, server_name: str, server: dict):
+        """Validate and canonicalize a single-hop jump-host reference."""
+        raw_jump_host = server.get("jump_host")
+        if raw_jump_host is None:
+            return None
+
+        jump_key, jump_path = self._config_target(raw_jump_host)
+        if jump_key == server_name:
+            raise ValueError(
+                f"server.jump_host cannot reference itself: {server_name}"
+            )
+        if not jump_path.exists():
+            raise FileNotFoundError(
+                f"Jump host config not found: {jump_path}"
+            )
+
+        jump_data = self._load_config(jump_key)
+        self._validate_server_config(jump_data)
+        nested_jump = jump_data["server"].get("jump_host")
+        if nested_jump:
+            raise ValueError(
+                "Only one jump host layer is supported; "
+                f"jump host '{jump_key}' also configures jump_host '{nested_jump}'"
+            )
+        return jump_key
+
     @staticmethod
     def _validate_server_config(config: dict):
         if not isinstance(config, dict):
@@ -995,6 +1111,23 @@ class ConnectionPool:
                     raise ValueError(
                         f"Server config must contain a non-empty server.{field}"
                     )
+        jump_host = server.get("jump_host")
+        if jump_host is not None:
+            if not isinstance(jump_host, str) or not jump_host.strip():
+                raise ValueError("server.jump_host must be a non-empty server name")
+            jump_name = jump_host.strip()
+            if jump_name.lower().endswith((".yml", ".yaml")):
+                jump_name = jump_name.rsplit(".", 1)[0]
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", jump_name):
+                raise ValueError(
+                    "Invalid server.jump_host; use letters, numbers, dot, "
+                    "underscore, or hyphen"
+                )
+            if server.get("proxy"):
+                raise ValueError(
+                    "server.proxy cannot be combined with server.jump_host; "
+                    "configure the proxy on the jump host instead"
+                )
         aliases = config.get("aliases")
         if aliases is not None and not isinstance(aliases, list):
             raise ValueError("Server config 'aliases' must be an array")
@@ -1136,6 +1269,8 @@ class ConnectionPool:
                     "group": srv.get("group", name),
                     "shell": srv.get("shell", "bash"),
                 }
+                if srv.get("jump_host"):
+                    info["jump_host"] = srv["jump_host"]
                 aliases = cfg.get("aliases", [])
                 if aliases:
                     info["aliases"] = len(aliases)

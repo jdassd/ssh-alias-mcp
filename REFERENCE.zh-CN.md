@@ -16,6 +16,7 @@
 ┌──────────────▼───────────────────────────────────────┐
 │  ssh_client.py  (共享核心)                            │
 │  ├── 连接池 (连接复用，60s 保活)                       │
+│  ├── SSH 跳板机转发 (direct-tcpip)                    │
 │  ├── SOCKS5 代理 + 直连自动回退                        │
 │  └── SFTP 脚本上传与下载                              │
 └──────────────┬───────────────────────────────────────┘
@@ -111,6 +112,9 @@ server:
   shell: "bash"                  # Shell 类型（bash / cmd / powershell，默认 bash）
   system: "Ubuntu 24.04 LTS"    # 操作系统信息
 
+  # SSH 跳板机（可选；填写另一份服务器配置的名称）
+  # jump_host: "bastion-prod"
+
   # 服务器级代理覆盖（可选，覆盖全局 config.yaml）
   proxy:
     host: "127.0.0.1"
@@ -144,6 +148,39 @@ aliases:
     desc: "View logs"
     timeout: 10
 ```
+
+## SSH 跳板机（堡垒机）
+
+将堡垒机和目标机分别定义为独立的服务器配置。目标机的 `jump_host` 填写
+堡垒机配置文件名（不带 `.yml`）：
+
+```yaml
+# servers/bastion-prod.yml
+server:
+  host: "203.0.113.10"
+  user: "ops"
+  key: "/home/me/.ssh/bastion_ed25519"
+```
+
+```yaml
+# servers/internal-app.yml
+server:
+  host: "10.0.0.20"
+  user: "deploy"
+  password: "target-password"
+  jump_host: "bastion-prod"
+```
+
+对 `internal-app` 的所有 CLI 和 MCP 操作都会先连接 `bastion-prod`，再打开
+通往 `10.0.0.20:22` 的 SSH `direct-tcpip` 通道，最后在该通道上建立目标机
+SSH 会话。堡垒机和目标机分别认证；目标机凭据只用于目标 SSH 握手。
+
+- 仅支持一层跳板机。自引用、循环引用以及自身还配置了 `jump_host` 的堡垒机都会被拒绝。
+- 配置了 `jump_host` 的目标机不能同时设置 `server.proxy`。若需
+  SOCKS5 → 堡垒机 → 目标机，请把代理配置在堡垒机上。
+- 跳板机连接失败时不会绕过跳板机直连目标机。
+- 堡垒机的 SSH 服务必须允许 TCP 转发（例如 OpenSSH 服务端配置
+  `AllowTcpForwarding yes`）。
 
 ## 共享别名继承（`extends`）
 
@@ -377,6 +414,7 @@ free -h
 | **连接** | 直连 SSH | 连接远程服务器 | `server.host`, `server.port` |
 | | 密码认证 | 密码登录 | `server.password` |
 | | 密钥认证 | SSH 密钥登录（可选密码） | `server.key`, `server.key_password` |
+| | SSH 跳板机 | 通过一台命名的堡垒机访问目标机 | `server.jump_host` |
 | | SOCKS5 代理 | 代理优先，失败自动回退直连 | `config.yaml` proxy / `server.proxy` |
 | | 连接池 | 自动复用，60s 保活 | 全局 `pool.get(name)` |
 | **命令执行** | `run()` | 执行命令，可选 sudo，实时流式输出 | `ssh_run` / CLI `run -s` |
