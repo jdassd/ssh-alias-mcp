@@ -23,7 +23,7 @@ from ssh_client import pool
 SERVER_INFO = {
     "name": "ssh-alias-mcp",
     "title": "SSH Alias MCP",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Run configured SSH commands, scripts, aliases, uploads, and downloads.",
 }
 SUPPORTED_PROTOCOL_VERSIONS = [
@@ -859,6 +859,9 @@ def handle_request(req: dict):
         return None
 
     params = _require_object(req.get("params", {}), "params")
+
+    if method == "ping":
+        return jsonrpc_result(req_id, {})
 
     if method == "initialize":
         return jsonrpc_result(req_id, {

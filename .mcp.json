@@ -2,7 +2,8 @@
   "mcpServers": {
     "ssh-alias-mcp": {
       "command": "python",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp_server.py"],
+      "args": ["./mcp_server.py"],
+      "cwd": ".",
       "env": {
         "SSH_ALIAS_MCP_DATA_DIR": "${CLAUDE_PLUGIN_DATA}"
       }

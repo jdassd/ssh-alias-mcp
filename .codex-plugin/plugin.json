@@ -1,10 +1,10 @@
 {
   "name": "ssh-alias-mcp",
   "description": "Configure and connect to multiple SSH servers, including jump-host routes.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
-    "name": "leehom0123",
-    "url": "https://github.com/leehom0123"
+    "name": "jdassd",
+    "url": "https://github.com/jdassd"
   },
   "homepage": "https://github.com/jdassd/ssh-alias-mcp",
   "repository": "https://github.com/jdassd/ssh-alias-mcp",
@@ -15,9 +15,12 @@
     "displayName": "SSH 服务器管理",
     "shortDescription": "配置并连接多台 SSH 服务器",
     "longDescription": "管理 SSH 服务器，支持密码、私钥、跳板机、命令、脚本和文件传输。",
-    "developerName": "leehom0123",
+    "developerName": "jdassd",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Read", "Write"],
+    "brandColor": "#1167F1",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/icon.png",
     "defaultPrompt": [
       "打开 SSH 服务器配置。",
       "列出我的 SSH 服务器。",

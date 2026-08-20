@@ -93,14 +93,22 @@ def load_global_config() -> dict:
 
 global_config: dict = load_global_config()
 
-# Codex provides CLAUDE_PLUGIN_DATA as a stable, writable directory for each
-# installed plugin.  The MCP launcher maps it to SSH_ALIAS_MCP_DATA_DIR so
-# server profiles survive plugin upgrades.  Direct source/CLI usage keeps the
-# existing config.yaml behavior for backwards compatibility.
+# Codex may map its stable plugin data directory into
+# SSH_ALIAS_MCP_DATA_DIR. Some launchers pass the placeholder through
+# literally, so fall back to a stable Codex-owned directory in that case.
+# Direct source/CLI usage keeps the existing config.yaml behavior.
 _plugin_data_dir_cfg = _normalize_path(os.environ.get("SSH_ALIAS_MCP_DATA_DIR", "").strip())
-if _plugin_data_dir_cfg:
+if _plugin_data_dir_cfg and "${" not in _plugin_data_dir_cfg:
     _plugin_data_dir = Path(os.path.expandvars(os.path.expanduser(_plugin_data_dir_cfg)))
     SERVERS_DIR = (_plugin_data_dir / "servers").resolve()
+elif _plugin_data_dir_cfg:
+    _codex_home_cfg = _normalize_path(os.environ.get("CODEX_HOME", "").strip())
+    _codex_home = (
+        Path(os.path.expandvars(os.path.expanduser(_codex_home_cfg))).resolve()
+        if _codex_home_cfg
+        else (Path.home() / ".codex").resolve()
+    )
+    SERVERS_DIR = (_codex_home / "ssh-alias-mcp" / "servers").resolve()
 else:
     # servers_dir can be configured in config.yaml (absolute or relative to config file)
     _servers_dir_cfg = _normalize_path(global_config.get("servers_dir", "servers"))
