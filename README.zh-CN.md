@@ -6,7 +6,7 @@ AI 驱动的服务器运维工具。YAML 配置服务器，执行命令、部署
 
 ## ✨ 亮点
 
-- **内嵌配置界面** — 直接添加、修改、删除多台服务器
+- **浏览器配置界面** — 在本机网页中添加、修改、删除多台服务器
 - **一套配置，三种 Shell** — `bash`、`cmd`、`powershell` 通过命令模板自动适配
 - **SSH 跳板机** — 通过命名的堡垒机配置和 `direct-tcpip` 访问内网目标机
 - **Alias 系统** — 一行 YAML = 一个 AI 技能，自动暴露为 MCP 工具
@@ -23,7 +23,9 @@ python cli.py my-server run "uptime"
 python cli.py my-server alias deploy
 ```
 
-在对话中说“打开 SSH 服务器配置”，即可打开配置界面。
+在对话中说“打开 SSH 服务器配置”，即可在默认浏览器打开配置页。网页仅监听 `127.0.0.1`，继续使用已有配置文件；已保存的密码不会返回给 Agent，也不会在表单中回显。自动打开失败时，可使用 `ssh_open_config` 返回的 `url` 手动打开。
+
+也可直接运行 `python cli.py open-config`。使用网页期间保持该进程运行，结束时按 Ctrl+C 关闭；通过 MCP 打开时，网页服务随 MCP 进程运行。
 
 ## 文档
 

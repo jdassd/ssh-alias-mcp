@@ -6,7 +6,7 @@ AI-driven server operations tool. Configure servers in YAML, execute commands, d
 
 ## ✨ Highlights
 
-- **Built-in configuration UI** — Add, edit, and delete multiple servers in the conversation
+- **Browser configuration UI** — Open local settings to add, edit, and delete multiple servers
 - **One config, three shells** — `bash`, `cmd`, `powershell` auto-adapted via command templates
 - **SSH jump hosts** — Reach private targets through a named bastion config using `direct-tcpip`
 - **Alias system** — One YAML line = one AI skill, auto-exposed as MCP tools
@@ -23,7 +23,9 @@ python cli.py my-server run "uptime"
 python cli.py my-server alias deploy
 ```
 
-Ask the agent to “open SSH server settings” to show the configuration UI.
+Ask the agent to “open SSH server settings” to open the configuration page in your default browser. The page runs on `127.0.0.1` and uses the same saved configuration files; stored passwords are never returned to the agent or displayed in the form. If the browser cannot be launched automatically, open the `url` returned by `ssh_open_config`.
+
+You can also run `python cli.py open-config` directly. Keep that process running while using the page, then press Ctrl+C to stop it. With MCP, the page stays available while the MCP server is running.
 
 ## Documentation
 

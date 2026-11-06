@@ -7,6 +7,7 @@ All commands that connect to SSH support `-s` (sudo) and `-t` (timeout).
 
 ```bash
 python cli.py list-servers                             # List all servers
+python cli.py open-config                              # Open local browser settings; Ctrl+C stops the page server
 python cli.py create-server <name> <config.yml>        # Create; refuses overwrite
 python cli.py update-server <name> <patch.yml> [--replace]  # Merge patch or replace
 python cli.py copy-server <source> <new-name>           # Copy to a new server name

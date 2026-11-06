@@ -87,7 +87,7 @@ The following MCP tools should appear in your agent session:
 
 ## 5. Add Servers
 
-Ask the agent to open SSH server settings, or create `.yml` files under `servers/`. Minimal config:
+Ask the agent to open SSH server settings in the default browser, or run `python cli.py open-config` and keep that process running while editing. The page uses the existing config files and leaves stored passwords unchanged when the password field is empty. For Codex plugin installs, configuration stays in the stable plugin data directory across program updates. You can also create `.yml` files under `servers/`. Minimal config:
 
 ```yaml
 server:

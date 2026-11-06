@@ -7,6 +7,7 @@
 
 ```bash
 python cli.py list-servers                             # 列出所有服务器
+python cli.py open-config                              # 在浏览器打开配置，Ctrl+C 停止网页服务
 python cli.py create-server <名称> <配置.yml>           # 新建（不会覆盖已有配置）
 python cli.py update-server <名称> <补丁.yml> [--replace] # 合并修改或整份替换
 python cli.py copy-server <源名称> <新名称>              # 复制成新的服务器名称

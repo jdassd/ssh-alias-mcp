@@ -41,7 +41,9 @@
 │       ├── cli.py             # CLI 入口
 │       ├── mcp_server.py      # MCP stdio 服务器
 │       ├── ssh_client.py      # 核心模块（SSH 连接、代理、连接池）
-│       ├── ui/config.html     # 内嵌服务器配置界面
+│       ├── config_web.py      # 仅本机访问的配置网页服务
+│       ├── ui/config.html     # 服务器配置表单
+│       ├── ui/browser.js      # 带会话校验的浏览器通信
 │       ├── config.yaml        # 全局配置（servers_dir、代理、超时）
 │       └── requirements.txt   # Python 依赖
 │

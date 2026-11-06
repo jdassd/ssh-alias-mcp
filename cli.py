@@ -3,6 +3,7 @@
 
 Usage:
     python cli.py list-servers
+    python cli.py open-config
     python cli.py create-server <name> <config.yml>
     python cli.py update-server <name> <config.yml> [--replace]
     python cli.py copy-server <source> <new-name>
@@ -34,6 +35,7 @@ HELP = """SSH Client CLI
 
 Usage:
     python cli.py list-servers
+    python cli.py open-config
     python cli.py create-server <name> <config.yml>
     python cli.py update-server <name> <config.yml> [--replace]
     python cli.py copy-server <source> <new-name>
@@ -42,6 +44,7 @@ Usage:
 
 Commands:
     list-servers                List all configured servers
+    open-config                 Open browser settings (keep this process running)
     create-server <name> <file> Create a server from a YAML config
     update-server <name> <file> Merge a YAML config patch (--replace for full replace)
     copy-server <source> <name> Copy a server config to a new name
@@ -131,6 +134,21 @@ def main():
 
     first = sys.argv[1]
     rest = sys.argv[2:]
+
+    if first == "open-config":
+        if rest:
+            print("Usage: python cli.py open-config", file=sys.stderr)
+            sys.exit(1)
+        import mcp_server
+        result = mcp_server._handle_ssh_open_config({})
+        print(json.dumps(result["structuredContent"], indent=2, ensure_ascii=False), flush=True)
+        try:
+            mcp_server._config_web_server.wait()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            mcp_server._config_web_server.close()
+        return
 
     # list-servers
     if first == "list-servers":

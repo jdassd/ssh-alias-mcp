@@ -846,6 +846,9 @@
       }
 
       function callTool(name, args) {
+        if (window.sshConfigBrowser) {
+          return window.sshConfigBrowser.callTool(name, args || {});
+        }
         var openai = window.openai;
         if (!bridgeReady && openai && typeof openai.callTool === "function") {
           return openai.callTool(name, args || {});

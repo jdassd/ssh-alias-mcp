@@ -7,6 +7,7 @@ import io
 import json
 import re
 import sys
+import threading
 from dataclasses import dataclass
 from hashlib import sha1
 from pathlib import Path
@@ -23,7 +24,7 @@ from ssh_client import pool
 SERVER_INFO = {
     "name": "ssh-alias-mcp",
     "title": "SSH Alias MCP",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Run configured SSH commands, scripts, aliases, uploads, and downloads.",
 }
 SUPPORTED_PROTOCOL_VERSIONS = [
@@ -35,7 +36,8 @@ SUPPORTED_PROTOCOL_VERSIONS = [
 LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0]
 MCP_INSTRUCTIONS = (
     "Use ssh_list_servers first to discover configured servers. "
-    "Use ssh_open_config when the user wants to manage server settings in the UI. "
+    "Use ssh_open_config to open server settings in the default browser. "
+    "If browser_opened is false, open the returned url in a browser. "
     "Use ssh_list_aliases before ssh_run_alias unless you already know the alias name. "
     "Server config create, update, copy, and delete tools modify local YAML files. "
     "Commands, uploads, downloads, and aliases can modify remote systems."
@@ -53,16 +55,8 @@ SECRET_FIELDS = {
 CONFIG_UI_URI = "ui://ssh-alias-mcp/config-v1.html"
 CONFIG_UI_MIME_TYPE = "text/html;profile=mcp-app"
 CONFIG_UI_PATH = Path(__file__).resolve().parent / "ui" / "config.html"
-CONFIG_UI_TOOL_META = {
-    "ui": {
-        "resourceUri": CONFIG_UI_URI,
-        "visibility": ["model", "app"],
-    },
-    "openai/outputTemplate": CONFIG_UI_URI,
-    "openai/widgetAccessible": True,
-    "openai/toolInvocation/invoking": "正在打开配置",
-    "openai/toolInvocation/invoked": "配置已打开",
-}
+_config_web_server = None
+_config_web_lock = threading.Lock()
 APP_ONLY_TOOL_META = {
     "ui": {"visibility": ["app"]},
     "openai/visibility": "private",
@@ -88,13 +82,15 @@ CONFIG_VIEW_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
         "view": {"type": "string", "enum": ["server-config"]},
+        "url": {"type": "string"},
+        "browser_opened": {"type": "boolean"},
         "count": {"type": "integer"},
         "servers": {
             "type": "array",
             "items": {"type": "object", "additionalProperties": True},
         },
     },
-    "required": ["view", "count", "servers"],
+    "required": ["view", "url", "browser_opened", "count", "servers"],
     "additionalProperties": False,
 }
 SERVER_CONFIG_OUTPUT_SCHEMA = {
@@ -438,9 +434,19 @@ def _handle_ssh_list_servers(args: dict) -> dict:
 
 
 def _handle_ssh_open_config(args: dict) -> dict:
+    global _config_web_server
+    from config_web import ConfigWebServer
+
+    with _config_web_lock:
+        if _config_web_server is None:
+            _config_web_server = ConfigWebServer(CONFIG_UI_PATH, handle_tools_call)
+        server = _config_web_server
+    opened = server.open_browser()
     servers = pool.list_servers()
     return _json_text({
         "view": "server-config",
+        "url": server.url,
+        "browser_opened": opened,
         "count": len(servers),
         "servers": servers,
     }, structured=True)
@@ -554,7 +560,7 @@ STATIC_TOOLS = {
     "ssh_open_config": ToolSpec(
         name="ssh_open_config",
         title="配置 SSH 服务器",
-        description="打开服务器配置界面。",
+        description="在默认浏览器打开 SSH 服务器配置网页。若 browser_opened 为 false，请在浏览器打开返回的 url。",
         args=(),
         annotations={
             "readOnlyHint": True,
@@ -562,7 +568,6 @@ STATIC_TOOLS = {
             "openWorldHint": False,
         },
         handler=_handle_ssh_open_config,
-        meta=CONFIG_UI_TOOL_META,
         output_schema=CONFIG_VIEW_OUTPUT_SCHEMA,
     ),
     "ssh_get_server_config": ToolSpec(
@@ -938,19 +943,23 @@ def write_response(msg):
 
 def main():
     """MCP stdio main loop."""
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            req = json.loads(line)
-        except json.JSONDecodeError:
-            write_response(jsonrpc_error(None, -32700, "Parse error"))
-            continue
+    try:
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                req = json.loads(line)
+            except json.JSONDecodeError:
+                write_response(jsonrpc_error(None, -32700, "Parse error"))
+                continue
 
-        resp = handle_message(req)
-        if resp is not None:
-            write_response(resp)
+            resp = handle_message(req)
+            if resp is not None:
+                write_response(resp)
+    finally:
+        if _config_web_server is not None:
+            _config_web_server.close()
 
 
 if __name__ == "__main__":

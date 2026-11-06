@@ -38,7 +38,9 @@
 │       ├── cli.py             # CLI entry point
 │       ├── mcp_server.py      # MCP stdio server
 │       ├── ssh_client.py      # Core module (SSH connection, proxy, pool)
-│       ├── ui/config.html     # Embedded server configuration UI
+│       ├── config_web.py      # Loopback-only configuration server
+│       ├── ui/config.html     # Server configuration form
+│       ├── ui/browser.js      # Authenticated browser transport
 │       ├── config.yaml        # Global config (servers_dir, proxy, timeout)
 │       └── requirements.txt   # Python dependencies
 │
