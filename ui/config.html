@@ -4,22 +4,100 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SSH 服务器配置</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%232563eb'/%3E%3Cstop offset='100%25' stop-color='%230ea5e9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpolyline points='8 21 15 14 8 7' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cline x1='17' y1='23' x2='25' y2='23' stroke='%23fff' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
   <style>
     :root {
       color-scheme: light;
-      --page: #f6f7f8;
+      --bg-page: #eef2f6;
+      --bg-glow-1: rgba(37, 99, 235, 0.07);
+      --bg-glow-2: rgba(14, 165, 233, 0.06);
       --surface: #ffffff;
-      --surface-soft: #f8f9fa;
-      --text: #151719;
-      --muted: #666b72;
-      --line: #e2e5e8;
-      --line-strong: #cbd0d6;
-      --accent: #245fa8;
-      --accent-soft: #edf4fc;
-      --danger: #b42318;
-      --danger-soft: #fff2f0;
-      --success: #157347;
-      --focus: 0 0 0 3px rgba(36, 95, 168, 0.18);
+      --surface-subtle: #f8fafc;
+      --surface-card: #ffffff;
+      --surface-input: #ffffff;
+      --surface-hover: #f1f5f9;
+      --sidebar-bg: #f8fafc;
+      --text: #0f172a;
+      --text-secondary: #334155;
+      --muted: #64748b;
+      --placeholder: #94a3b8;
+      --line: #e2e8f0;
+      --line-strong: #cbd5e1;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-soft: #eff6ff;
+      --accent-border: #bfdbfe;
+      --accent-text: #1d4ed8;
+      --danger: #dc2626;
+      --danger-hover: #b91c1c;
+      --danger-soft: #fef2f2;
+      --danger-border: #fecaca;
+      --success: #059669;
+      --success-soft: #ecfdf5;
+      --success-border: #a7f3d0;
+      --warning: #d97706;
+      --warning-soft: #fffbeb;
+      --warning-border: #fde68a;
+      --shadow-app: 0 20px 50px -12px rgba(15, 23, 42, 0.09), 0 1px 3px rgba(15, 23, 42, 0.05);
+      --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-item: 0 2px 6px rgba(15, 23, 42, 0.05);
+      --shadow-segment: 0 1px 3px rgba(15, 23, 42, 0.1), 0 1px 2px rgba(15, 23, 42, 0.06);
+      --focus: 0 0 0 3px rgba(37, 99, 235, 0.18);
+      --focus-danger: 0 0 0 3px rgba(220, 38, 38, 0.16);
+      --preview-bg: #0f172a;
+      --preview-text: #e2e8f0;
+      --preview-muted: #94a3b8;
+      --preview-accent: #38bdf8;
+      --toast-bg: #0f172a;
+      --font-sans: "Segoe UI Variable Text", "Inter", "PingFang SC", "Hiragino Sans GB",
+        "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui, -apple-system, sans-serif;
+      --font-mono: "Cascadia Mono", "JetBrains Mono", "SFMono-Regular", Consolas,
+        "Liberation Mono", Menlo, monospace;
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg-page: #090d16;
+      --bg-glow-1: rgba(59, 130, 246, 0.11);
+      --bg-glow-2: rgba(14, 165, 233, 0.07);
+      --surface: #111827;
+      --surface-subtle: #0d1321;
+      --surface-card: #151e2e;
+      --surface-input: #0f172a;
+      --surface-hover: #1e293b;
+      --sidebar-bg: #0d1422;
+      --text: #f1f5f9;
+      --text-secondary: #cbd5e1;
+      --muted: #94a3b8;
+      --placeholder: #64748b;
+      --line: #1e293b;
+      --line-strong: #334155;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-soft: rgba(59, 130, 246, 0.15);
+      --accent-border: rgba(59, 130, 246, 0.36);
+      --accent-text: #60a5fa;
+      --danger: #f87171;
+      --danger-hover: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.14);
+      --danger-border: rgba(239, 68, 68, 0.34);
+      --success: #34d399;
+      --success-soft: rgba(16, 185, 129, 0.14);
+      --success-border: rgba(16, 185, 129, 0.32);
+      --warning: #fbbf24;
+      --warning-soft: rgba(245, 158, 11, 0.14);
+      --warning-border: rgba(245, 158, 11, 0.32);
+      --shadow-app: 0 24px 56px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.03);
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.22);
+      --shadow-item: 0 2px 8px rgba(0, 0, 0, 0.28);
+      --shadow-segment: 0 1px 3px rgba(0, 0, 0, 0.38);
+      --focus: 0 0 0 3px rgba(59, 130, 246, 0.26);
+      --focus-danger: 0 0 0 3px rgba(248, 113, 113, 0.24);
+      --preview-bg: #090d16;
+      --preview-text: #e2e8f0;
+      --preview-muted: #64748b;
+      --preview-accent: #38bdf8;
+      --toast-bg: #1e293b;
     }
 
     * {
@@ -33,13 +111,16 @@
 
     body {
       margin: 0;
-      background: var(--page);
+      background-color: var(--bg-page);
+      background-image:
+        radial-gradient(800px circle at 12% 0%, var(--bg-glow-1), transparent 70%),
+        radial-gradient(700px circle at 88% 8%, var(--bg-glow-2), transparent 70%);
       color: var(--text);
-      font-family: "Segoe UI Variable", "Microsoft YaHei UI", "PingFang SC",
-        "Noto Sans CJK SC", system-ui, sans-serif;
+      font-family: var(--font-sans);
       font-size: 14px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     button,
@@ -57,95 +138,339 @@
       display: none !important;
     }
 
+    .icon {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      stroke: currentColor;
+      stroke-width: 1.85;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+    }
+
+    /* App Shell */
     .app {
-      width: min(1080px, calc(100% - 24px));
-      min-height: 620px;
-      margin: 12px auto;
+      display: flex;
+      flex-direction: column;
+      width: min(1160px, calc(100% - 32px));
+      min-height: min(780px, calc(100vh - 40px));
+      margin: 20px auto;
       overflow: hidden;
       background: var(--surface);
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: 18px;
+      box-shadow: var(--shadow-app);
     }
 
+    /* Top Header */
     .topbar {
       display: flex;
-      min-height: 64px;
+      min-height: 68px;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      padding: 14px 20px;
+      padding: 14px 24px;
+      background: var(--surface);
       border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      color: #ffffff;
+      background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
+      border-radius: 11px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+
+    .brand-mark .icon {
+      width: 20px;
+      height: 20px;
+      stroke-width: 2;
+    }
+
+    .brand-copy {
+      min-width: 0;
     }
 
     .title-line {
       display: flex;
-      align-items: baseline;
-      gap: 10px;
+      align-items: center;
+      gap: 9px;
+      flex-wrap: wrap;
     }
 
     h1 {
       margin: 0;
-      font-size: 18px;
-      font-weight: 680;
+      font-size: 17px;
+      font-weight: 700;
       letter-spacing: -0.02em;
+      line-height: 1.25;
     }
 
     .count {
-      color: var(--muted);
-      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 9px;
+      color: var(--accent-text);
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.4;
     }
 
+    .brand-subtitle {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 0 0 auto;
+    }
+
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      color: var(--muted);
+      background: var(--surface-subtle);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+    }
+
+    .icon-button:hover {
+      color: var(--text);
+      background: var(--surface-hover);
+      border-color: var(--line-strong);
+    }
+
+    [data-theme="dark"] .sun-icon {
+      display: block;
+    }
+
+    [data-theme="dark"] .moon-icon {
+      display: none;
+    }
+
+    :root:not([data-theme="dark"]) .sun-icon {
+      display: none;
+    }
+
+    :root:not([data-theme="dark"]) .moon-icon {
+      display: block;
+    }
+
+    /* Main Workspace Layout */
     .layout {
       display: grid;
-      min-height: 554px;
-      grid-template-columns: 260px minmax(0, 1fr);
+      flex: 1;
+      min-height: 620px;
+      grid-template-columns: 296px minmax(0, 1fr);
     }
 
+    /* Sidebar */
     .sidebar {
-      padding: 16px 12px;
-      background: var(--surface-soft);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 14px;
+      background: var(--sidebar-bg);
       border-right: 1px solid var(--line);
+      min-width: 0;
+    }
+
+    .sidebar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 0 6px 10px;
     }
 
     .sidebar-label {
-      margin: 0 8px 8px;
+      margin: 0;
       color: var(--muted);
       font-size: 12px;
       font-weight: 650;
       letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .search-box {
+      position: relative;
+      margin-bottom: 12px;
+    }
+
+    .search-box .search-icon {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      width: 15px;
+      height: 15px;
+      color: var(--placeholder);
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      min-height: 36px;
+      height: 36px;
+      padding: 6px 30px 6px 33px;
+      font-size: 13px;
+      background: var(--surface-input);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+
+    .search-clear {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      transform: translateY(-50%);
+    }
+
+    .search-clear:hover {
+      color: var(--text);
+      background: var(--surface-hover);
     }
 
     .server-list {
-      display: grid;
-      gap: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
+      padding-right: 2px;
     }
 
     .server-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 11px;
       width: 100%;
       padding: 10px 12px;
       text-align: left;
       color: inherit;
       background: transparent;
       border: 1px solid transparent;
-      border-radius: 8px;
+      border-radius: 11px;
+      transition: background-color 130ms ease, border-color 130ms ease, box-shadow 130ms ease, transform 130ms ease;
     }
 
     .server-item:hover {
-      background: #ffffff;
+      background: var(--surface);
       border-color: var(--line);
+      box-shadow: var(--shadow-card);
     }
 
     .server-item[aria-current="true"] {
+      background: var(--surface);
+      border-color: var(--accent-border);
+      box-shadow: var(--shadow-item);
+    }
+
+    .server-item[aria-current="true"]::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3.5px;
+      background: var(--accent);
+      border-radius: 0 4px 4px 0;
+    }
+
+    .server-avatar {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+      color: var(--muted);
+      background: var(--surface-hover);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      transition: color 130ms ease, background-color 130ms ease, border-color 130ms ease;
+    }
+
+    .server-item[aria-current="true"] .server-avatar {
+      color: var(--accent-text);
       background: var(--accent-soft);
-      border-color: #ccdcf0;
+      border-color: var(--accent-border);
+    }
+
+    .server-item.has-error .server-avatar {
+      color: var(--danger);
+      background: var(--danger-soft);
+      border-color: var(--danger-border);
+    }
+
+    .server-body {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .server-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
     }
 
     .server-name {
       display: block;
       overflow: hidden;
+      font-size: 13.5px;
       font-weight: 650;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .server-item[aria-current="true"] .server-name {
+      color: var(--accent-text);
+    }
+
+    .shell-pill {
+      flex: 0 0 auto;
+      padding: 1px 6px;
+      color: var(--muted);
+      background: var(--surface-subtle);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      line-height: 1.45;
     }
 
     .server-meta {
@@ -153,82 +478,252 @@
       min-width: 0;
       align-items: center;
       gap: 6px;
-      margin-top: 2px;
+      margin-top: 3px;
       color: var(--muted);
       font-size: 12px;
     }
 
     .server-host {
       overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
+    .server-item.has-error .server-host {
+      color: var(--danger);
+      font-family: var(--font-sans);
+      font-weight: 500;
+    }
+
     .jump-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
       flex: 0 0 auto;
-      color: var(--accent);
+      padding: 0 5px;
+      color: var(--accent-text);
+      background: var(--accent-soft);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 550;
     }
 
     .empty-list {
-      margin: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 28px 8px;
+      padding: 24px 16px;
+      text-align: center;
       color: var(--muted);
+      background: var(--surface);
+      border: 1px dashed var(--line-strong);
+      border-radius: 12px;
+      font-size: 13px;
     }
 
+    .empty-list .icon {
+      width: 26px;
+      height: 26px;
+      color: var(--placeholder);
+    }
+
+    /* Main Content Area */
     .content {
       min-width: 0;
-      padding: 24px clamp(20px, 5vw, 48px) 32px;
+      background: var(--surface-subtle);
+      padding: 26px clamp(20px, 4vw, 40px) 36px;
+    }
+
+    #serverForm {
+      max-width: 780px;
+      margin: 0 auto;
+    }
+
+    /* Form Hero Header */
+    .form-hero {
+      margin-bottom: 20px;
+      padding: 18px 20px;
+      background: var(--surface-card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow-card);
     }
 
     .form-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 24px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .form-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
     }
 
     .form-head h2 {
       margin: 0;
       overflow: hidden;
-      font-size: 20px;
-      font-weight: 680;
+      font-size: 19px;
+      font-weight: 700;
       letter-spacing: -0.02em;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
+    .badge-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .status-tag {
       display: inline-flex;
       align-items: center;
+      gap: 5px;
       min-height: 24px;
-      padding: 2px 8px;
+      padding: 2px 10px;
       color: var(--success);
-      background: #edf8f2;
+      background: var(--success-soft);
+      border: 1px solid var(--success-border);
       border-radius: 999px;
       font-size: 12px;
-      font-weight: 650;
+      font-weight: 600;
     }
 
+    .status-tag.mode-new {
+      color: var(--accent-text);
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+    }
+
+    .status-tag.dirty {
+      color: var(--warning);
+      background: var(--warning-soft);
+      border-color: var(--warning-border);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .ssh-preview {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-top: 12px;
+      padding: 8px 12px;
+      color: var(--preview-text);
+      background: var(--preview-bg);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 9px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      overflow-x: auto;
+    }
+
+    .ssh-preview-prompt {
+      color: var(--preview-accent);
+      user-select: none;
+      font-weight: 600;
+    }
+
+    .ssh-preview-cmd {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ssh-preview-cmd.is-placeholder {
+      color: var(--preview-muted);
+      font-family: var(--font-sans);
+      font-size: 12.5px;
+    }
+
+    /* Card Sections */
     .section {
-      margin: 0 0 28px;
-      padding: 0;
-      border: 0;
+      margin: 0 0 18px;
+      padding: 20px 22px;
+      background: var(--surface-card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow-card);
+    }
+
+    fieldset.section {
+      min-width: 0;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 16px;
+      padding: 0 0 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-icon {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      color: var(--accent-text);
+      background: var(--accent-soft);
+      border-radius: 8px;
+    }
+
+    .section-icon .icon {
+      width: 15px;
+      height: 15px;
     }
 
     .section-title,
     .section legend {
-      width: 100%;
-      margin: 0 0 14px;
-      padding: 0 0 8px;
-      font-size: 14px;
+      margin: 0;
+      padding: 0;
+      font-size: 14.5px;
       font-weight: 680;
+      color: var(--text);
+    }
+
+    fieldset.section > legend {
+      float: left;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 16px;
+      padding: 0 0 12px;
       border-bottom: 1px solid var(--line);
     }
 
+    fieldset.section > legend + * {
+      clear: both;
+    }
+
+    /* Form Grids & Controls */
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
+      gap: 14px 16px;
+    }
+
+    .grid.host-port-row {
+      grid-column: 1 / -1;
+      grid-template-columns: minmax(0, 1.55fr) minmax(120px, 0.65fr);
     }
 
     .field {
@@ -239,37 +734,75 @@
       grid-column: 1 / -1;
     }
 
-    label,
     label {
       display: block;
       margin-bottom: 6px;
-      color: #34383d;
+      color: var(--text-secondary);
       font-size: 13px;
-      font-weight: 620;
+      font-weight: 600;
     }
 
-    input,
-    select,
-    textarea {
+    .req-star {
+      margin-left: 3px;
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
       width: 100%;
       min-height: 40px;
-      padding: 8px 10px;
+      padding: 8px 12px;
       color: var(--text);
-      background: #ffffff;
+      background: var(--surface-input);
       border: 1px solid var(--line-strong);
-      border-radius: 7px;
+      border-radius: 9px;
       outline: 0;
-      transition: border-color 140ms ease, box-shadow 140ms ease;
+      transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+    }
+
+    .mono-input {
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+
+    select {
+      appearance: none;
+      -webkit-appearance: none;
+      padding-right: 36px;
+    }
+
+    .select-wrap {
+      position: relative;
+    }
+
+    .select-wrap .select-chevron {
+      position: absolute;
+      right: 11px;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      color: var(--muted);
+      transform: translateY(-50%);
+      pointer-events: none;
     }
 
     textarea {
-      min-height: 76px;
+      min-height: 82px;
+      padding: 10px 12px;
       resize: vertical;
+      line-height: 1.55;
     }
 
     input::placeholder,
     textarea::placeholder {
-      color: #949aa1;
+      color: var(--placeholder);
+      font-family: var(--font-sans);
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]):hover:not(:disabled):not(:focus),
+    select:hover:not(:disabled):not(:focus),
+    textarea:hover:not(:disabled):not(:focus) {
+      border-color: var(--muted);
     }
 
     input:focus,
@@ -288,23 +821,37 @@
       border-color: var(--danger);
     }
 
-    input:disabled {
+    input[aria-invalid="true"]:focus,
+    select[aria-invalid="true"]:focus,
+    textarea[aria-invalid="true"]:focus {
+      box-shadow: var(--focus-danger);
+    }
+
+    input:disabled,
+    select:disabled {
       color: var(--muted);
-      background: #f1f2f3;
+      background: var(--surface-hover);
+      border-color: var(--line);
       cursor: not-allowed;
     }
 
     .field-note {
-      min-height: 18px;
-      margin: 4px 0 0;
+      margin: 5px 0 0;
       color: var(--muted);
       font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .field-note:empty {
+      display: none;
     }
 
     .field-note.error {
       color: var(--danger);
+      font-weight: 500;
     }
 
+    /* Secret Inputs & Badges */
     .secret-line {
       display: flex;
       align-items: center;
@@ -318,23 +865,77 @@
     }
 
     .saved {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 8px;
       color: var(--success);
-      font-size: 12px;
-      font-weight: 620;
+      background: var(--success-soft);
+      border: 1px solid var(--success-border);
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
     }
 
+    .saved::before {
+      content: "✓";
+      font-weight: 700;
+    }
+
+    .secret-input-wrap {
+      position: relative;
+    }
+
+    .secret-input-wrap input {
+      padding-right: 40px;
+    }
+
+    .peek-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      color: var(--muted);
+      background: transparent;
+      border: 0;
+      border-radius: 7px;
+      transform: translateY(-50%);
+      transition: color 130ms ease, background-color 130ms ease;
+    }
+
+    .peek-btn:hover {
+      color: var(--text);
+      background: var(--surface-hover);
+    }
+
+    .peek-btn[aria-pressed="true"] .eye-open {
+      display: none;
+    }
+
+    .peek-btn[aria-pressed="false"] .eye-off {
+      display: none;
+    }
+
+    /* Segmented Auth Switch */
     .auth-switch {
       display: inline-grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 3px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+      width: min(100%, 420px);
       margin-bottom: 16px;
-      padding: 3px;
-      background: #f0f2f4;
-      border-radius: 8px;
+      padding: 4px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--line);
+      border-radius: 11px;
     }
 
     .auth-switch label {
       margin: 0;
+      cursor: pointer;
     }
 
     .auth-switch input {
@@ -346,90 +947,209 @@
     }
 
     .auth-switch span {
-      display: block;
-      min-width: 92px;
-      padding: 6px 12px;
-      text-align: center;
-      border: 1px solid transparent;
-      border-radius: 6px;
+      display: inline-flex;
+      width: 100%;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 12px;
+      color: var(--muted);
+      border-radius: 8px;
       font-size: 13px;
-      font-weight: 620;
+      font-weight: 600;
+      transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .auth-switch span .icon {
+      width: 14.5px;
+      height: 14.5px;
+    }
+
+    .auth-switch label:hover span {
+      color: var(--text);
     }
 
     .auth-switch input:checked + span {
-      color: var(--accent);
-      background: #ffffff;
-      border-color: var(--line);
+      color: var(--accent-text);
+      background: var(--surface-card);
+      box-shadow: var(--shadow-segment);
     }
 
     .auth-switch input:focus-visible + span {
       box-shadow: var(--focus);
     }
 
-    details {
-      margin-bottom: 28px;
-      border-top: 1px solid var(--line);
-      border-bottom: 1px solid var(--line);
+    .callout-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 0;
+      padding: 12px 14px;
+      color: var(--text-secondary);
+      background: var(--surface-subtle);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-size: 13px;
+    }
+
+    .callout-note .icon {
+      margin-top: 2px;
+      color: var(--accent-text);
+    }
+
+    /* Collapsible Advanced Card */
+    details.advanced-card {
+      margin-bottom: 20px;
+      background: var(--surface-card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
     }
 
     summary {
       display: flex;
-      min-height: 48px;
+      min-height: 58px;
       align-items: center;
       justify-content: space-between;
-      padding: 0 2px;
-      font-weight: 680;
+      gap: 12px;
+      padding: 12px 22px;
       cursor: pointer;
       list-style: none;
+      user-select: none;
+      transition: background-color 140ms ease;
+    }
+
+    summary:hover {
+      background: var(--surface-subtle);
     }
 
     summary::-webkit-details-marker {
       display: none;
     }
 
-    summary::after {
-      content: "展开";
+    .summary-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .summary-copy {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .summary-title {
+      font-size: 14.5px;
+      font-weight: 680;
+      color: var(--text);
+    }
+
+    .summary-hint {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 450;
+    }
+
+    .summary-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       color: var(--muted);
       font-size: 12px;
       font-weight: 500;
+      flex: 0 0 auto;
     }
 
-    details[open] summary::after {
-      content: "收起";
+    .summary-chevron {
+      transition: transform 180ms ease;
+    }
+
+    details[open] summary {
+      border-bottom: 1px solid var(--line);
+    }
+
+    details[open] .summary-chevron {
+      transform: rotate(180deg);
     }
 
     .details-body {
-      padding: 4px 0 20px;
+      padding: 18px 22px 22px;
     }
 
-    .check-row {
+    /* Modern Toggle Switch */
+    .toggle-card {
       display: flex;
-      min-height: 40px;
       align-items: center;
-      gap: 9px;
-      padding: 8px 0;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 40px;
+      margin-top: 25px;
+      padding: 7px 12px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--line);
+      border-radius: 9px;
     }
 
-    .check-row input {
-      width: 17px;
-      min-height: 17px;
-      height: 17px;
+    .toggle-card label {
       margin: 0;
-      accent-color: var(--accent);
+      cursor: pointer;
+      user-select: none;
     }
 
-    .check-row label {
+    .switch-input {
+      appearance: none;
+      -webkit-appearance: none;
+      position: relative;
+      width: 38px;
+      height: 22px;
+      min-height: 22px;
       margin: 0;
+      flex: 0 0 auto;
+      background: var(--line-strong);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background-color 150ms ease;
     }
 
+    .switch-input::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      transition: transform 150ms ease;
+    }
+
+    .switch-input:checked {
+      background: var(--accent);
+    }
+
+    .switch-input:checked::after {
+      transform: translateX(16px);
+    }
+
+    /* Action Bar */
     .actions {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding-top: 4px;
+      padding: 14px 20px;
+      background: var(--surface-card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow-card);
     }
 
+    .action-left,
     .action-right {
       display: flex;
       align-items: center;
@@ -437,27 +1157,54 @@
     }
 
     .button {
+      display: inline-flex;
       min-height: 38px;
-      padding: 7px 14px;
-      color: #2f3337;
-      background: #ffffff;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 7px 15px;
+      color: var(--text-secondary);
+      background: var(--surface-card);
       border: 1px solid var(--line-strong);
-      border-radius: 7px;
-      font-weight: 650;
+      border-radius: 9px;
+      font-size: 13.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 100ms ease;
     }
 
-    .button:hover {
-      background: #f7f8f9;
+    .button:hover:not(:disabled) {
+      color: var(--text);
+      background: var(--surface-hover);
+    }
+
+    .button:active:not(:disabled) {
+      transform: translateY(0.5px);
     }
 
     .button.primary {
       color: #ffffff;
-      background: var(--accent);
+      background: linear-gradient(180deg, #3b82f6 0%, var(--accent) 100%);
       border-color: var(--accent);
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.16);
     }
 
-    .button.primary:hover {
-      background: #1d518f;
+    .button.primary:hover:not(:disabled) {
+      color: #ffffff;
+      background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
+      border-color: var(--accent-hover);
+    }
+
+    .button.new-server-btn {
+      color: var(--accent-text);
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+    }
+
+    .button.new-server-btn:hover:not(:disabled) {
+      color: #ffffff;
+      background: var(--accent);
+      border-color: var(--accent);
     }
 
     .button.danger {
@@ -466,57 +1213,133 @@
       border-color: transparent;
     }
 
-    .button.danger:hover,
-    .button.danger.armed {
+    .button.danger:hover:not(:disabled) {
       background: var(--danger-soft);
-      border-color: #f3c8c4;
+      border-color: var(--danger-border);
+    }
+
+    .button.danger.armed {
+      color: #ffffff;
+      background: var(--danger);
+      border-color: var(--danger);
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.28);
+    }
+
+    .button.danger.armed:hover:not(:disabled) {
+      background: var(--danger-hover);
+      border-color: var(--danger-hover);
     }
 
     .button:disabled {
-      opacity: 0.55;
+      opacity: 0.58;
       cursor: wait;
     }
 
+    /* Loading State */
     .loading {
       display: flex;
-      min-height: 260px;
+      flex-direction: column;
+      min-height: 360px;
       align-items: center;
       justify-content: center;
+      gap: 14px;
+      padding: 24px;
+      text-align: center;
       color: var(--muted);
+      font-size: 13.5px;
     }
 
+    .loading::before {
+      content: "";
+      width: 28px;
+      height: 28px;
+      border: 2.5px solid var(--line-strong);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+
+    .loading.is-error {
+      color: var(--danger);
+    }
+
+    .loading.is-error::before {
+      content: "!";
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      color: var(--danger);
+      background: var(--danger-soft);
+      border: 1.5px solid var(--danger-border);
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 16px;
+      animation: none;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* Toast Notification */
     .toast {
       position: fixed;
-      right: 20px;
-      bottom: 20px;
-      z-index: 10;
-      max-width: min(360px, calc(100vw - 40px));
-      padding: 10px 14px;
+      right: 24px;
+      bottom: 24px;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      max-width: min(380px, calc(100vw - 40px));
+      padding: 11px 16px;
       color: #ffffff;
-      background: #24272a;
-      border-radius: 8px;
+      background: var(--toast-bg);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 11px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+      font-size: 13.5px;
+      font-weight: 500;
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(10px) scale(0.98);
       pointer-events: none;
-      transition: opacity 150ms ease, transform 150ms ease;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .toast::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #34d399;
     }
 
     .toast.show {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
     }
 
     .toast.error {
-      background: var(--danger);
+      background: #991b1b;
+      border-color: rgba(254, 202, 202, 0.25);
     }
 
-    @media (max-width: 720px) {
+    .toast.error::before {
+      background: #fca5a5;
+    }
+
+    /* Responsive Breakpoints */
+    @media (max-width: 820px) {
       .app {
         width: 100%;
         min-height: 100vh;
         margin: 0;
         border: 0;
         border-radius: 0;
+        box-shadow: none;
       }
 
       .layout {
@@ -524,29 +1347,48 @@
       }
 
       .sidebar {
-        padding: 12px;
+        padding: 12px 16px;
         border-right: 0;
         border-bottom: 1px solid var(--line);
       }
 
       .server-list {
-        display: flex;
+        flex-direction: row;
         overflow-x: auto;
-        padding-bottom: 2px;
+        padding-bottom: 4px;
         scrollbar-width: thin;
       }
 
       .server-item {
-        flex: 0 0 180px;
+        flex: 0 0 220px;
+      }
+
+      .server-item[aria-current="true"]::before {
+        left: 12px;
+        right: 12px;
+        top: auto;
+        bottom: 0;
+        width: auto;
+        height: 3px;
+        border-radius: 3px 3px 0 0;
       }
 
       .content {
-        padding: 20px 16px 28px;
+        padding: 20px 16px 32px;
       }
     }
 
-    @media (max-width: 520px) {
-      .grid {
+    @media (max-width: 560px) {
+      .topbar {
+        padding: 12px 16px;
+      }
+
+      .brand-subtitle {
+        display: none;
+      }
+
+      .grid,
+      .grid.host-port-row {
         grid-template-columns: 1fr;
       }
 
@@ -554,13 +1396,27 @@
         grid-column: auto;
       }
 
-      .topbar {
+      .toggle-card {
+        margin-top: 0;
+      }
+
+      .section,
+      .details-body {
+        padding: 16px;
+      }
+
+      summary {
         padding: 12px 16px;
+      }
+
+      .summary-hint {
+        display: none;
       }
 
       .actions {
         align-items: stretch;
         flex-direction: column-reverse;
+        padding: 14px 16px;
       }
 
       .action-right {
@@ -571,8 +1427,8 @@
         flex: 1;
       }
 
-      .button.danger {
-        align-self: flex-start;
+      .action-left {
+        justify-content: flex-start;
       }
     }
 
@@ -580,6 +1436,7 @@
       *,
       *::before,
       *::after {
+        animation-duration: 0.01ms !important;
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
       }
@@ -589,177 +1446,381 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="title-line">
-        <h1>服务器配置</h1>
-        <span class="count" id="serverCount">0 台</span>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg class="icon" viewBox="0 0 24 24">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+        </div>
+        <div class="brand-copy">
+          <div class="title-line">
+            <h1>服务器配置</h1>
+            <span class="count" id="serverCount">0 台</span>
+          </div>
+          <p class="brand-subtitle">集中管理远程 SSH 主机连接、密钥凭据与跳板路由</p>
+        </div>
       </div>
-      <button class="button" id="newButton" type="button">新建服务器</button>
+
+      <div class="topbar-actions">
+        <button class="icon-button" id="themeToggle" type="button" title="切换浅色 / 深色外观" aria-label="切换浅色或深色外观">
+          <svg class="icon moon-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+          <svg class="icon sun-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <line x1="12" y1="2" x2="12" y2="4"></line>
+            <line x1="12" y1="20" x2="12" y2="22"></line>
+            <line x1="4.93" y1="4.93" x2="6.34" y2="6.34"></line>
+            <line x1="17.66" y1="17.66" x2="19.07" y2="19.07"></line>
+            <line x1="2" y1="12" x2="4" y2="12"></line>
+            <line x1="20" y1="12" x2="22" y2="12"></line>
+            <line x1="4.93" y1="19.07" x2="6.34" y2="17.66"></line>
+            <line x1="17.66" y1="6.34" x2="19.07" y2="4.93"></line>
+          </svg>
+        </button>
+        <button class="button new-server-btn" id="newButton" type="button">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>新建服务器</span>
+        </button>
+      </div>
     </header>
 
     <div class="layout">
       <aside class="sidebar" aria-label="服务器列表">
-        <p class="sidebar-label">服务器</p>
+        <div class="sidebar-head">
+          <p class="sidebar-label">主机列表</p>
+        </div>
+        <div class="search-box" id="searchBox">
+          <svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input class="search-input" id="serverSearch" type="search" placeholder="筛选名称、地址或分组…" autocomplete="off" aria-label="筛选服务器">
+          <button class="search-clear" id="searchClear" type="button" aria-label="清除筛选" hidden>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
         <nav class="server-list" id="serverList"></nav>
-        <p class="empty-list" id="emptyList" hidden>还没有服务器。</p>
+        <div class="empty-list" id="emptyList" hidden>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2" y="3" width="20" height="7" rx="2"></rect>
+            <rect x="2" y="14" width="20" height="7" rx="2"></rect>
+            <line x1="6" y1="6.5" x2="6.01" y2="6.5"></line>
+            <line x1="6" y1="17.5" x2="6.01" y2="17.5"></line>
+          </svg>
+          <span id="emptyListText">还没有服务器，请在右侧创建。</span>
+        </div>
       </aside>
 
       <main class="content">
         <div class="loading" id="loading">正在读取配置…</div>
 
         <form id="serverForm" novalidate hidden>
-          <div class="form-head">
-            <h2 id="formTitle">新建服务器</h2>
-            <span class="status-tag" id="inheritTag" hidden>使用了共享配置</span>
+          <div class="form-hero">
+            <div class="form-head">
+              <div class="form-title-group">
+                <h2 id="formTitle">新建服务器</h2>
+              </div>
+              <div class="badge-group">
+                <span class="status-tag mode-new" id="modeTag" hidden>新建配置</span>
+                <span class="status-tag dirty" id="dirtyTag" hidden>
+                  <span class="status-dot" aria-hidden="true"></span>未保存修改
+                </span>
+                <span class="status-tag" id="inheritTag" hidden>使用了共享配置</span>
+              </div>
+            </div>
+            <div class="ssh-preview" aria-live="polite">
+              <span class="ssh-preview-prompt">$</span>
+              <span class="ssh-preview-cmd is-placeholder" id="sshPreviewText">填写下方地址与用户名后预览连接命令</span>
+            </div>
           </div>
 
           <section class="section" aria-labelledby="connectionTitle">
-            <h3 class="section-title" id="connectionTitle">连接</h3>
+            <div class="section-header">
+              <span class="section-icon" aria-hidden="true">
+                <svg class="icon" viewBox="0 0 24 24">
+                  <rect x="2" y="3" width="20" height="7" rx="2"></rect>
+                  <rect x="2" y="14" width="20" height="7" rx="2"></rect>
+                  <line x1="6" y1="6.5" x2="6.01" y2="6.5"></line>
+                  <line x1="6" y1="17.5" x2="6.01" y2="17.5"></line>
+                </svg>
+              </span>
+              <h3 class="section-title" id="connectionTitle">连接信息</h3>
+            </div>
             <div class="grid">
               <div class="field">
-                <label for="serverName">配置名</label>
-                <input id="serverName" name="serverName" autocomplete="off" required>
+                <label for="serverName">配置名<span class="req-star" aria-hidden="true">*</span></label>
+                <input class="mono-input" id="serverName" name="serverName" placeholder="例如 prod-web-01" autocomplete="off" required>
                 <p class="field-note" id="serverNameError"></p>
               </div>
               <div class="field">
                 <label for="displayName">显示名称</label>
-                <input id="displayName" name="displayName" autocomplete="off">
+                <input id="displayName" name="displayName" placeholder="例如 生产环境 Web 节点" autocomplete="off">
               </div>
-              <div class="field wide">
-                <label for="host">地址</label>
-                <input id="host" name="host" autocomplete="off" required>
-                <p class="field-note" id="hostError"></p>
+
+              <div class="grid host-port-row">
+                <div class="field">
+                  <label for="host">服务器地址<span class="req-star" aria-hidden="true">*</span></label>
+                  <input class="mono-input" id="host" name="host" placeholder="IP 或域名，如 192.168.1.10" autocomplete="off" required>
+                  <p class="field-note" id="hostError"></p>
+                </div>
+                <div class="field">
+                  <label for="port">SSH 端口<span class="req-star" aria-hidden="true">*</span></label>
+                  <input class="mono-input" id="port" name="port" type="number" min="1" max="65535" inputmode="numeric" required>
+                  <p class="field-note" id="portError"></p>
+                </div>
               </div>
+
               <div class="field">
-                <label for="port">端口</label>
-                <input id="port" name="port" type="number" min="1" max="65535" inputmode="numeric" required>
-                <p class="field-note" id="portError"></p>
-              </div>
-              <div class="field">
-                <label for="user">用户名</label>
-                <input id="user" name="user" autocomplete="username" required>
+                <label for="user">用户名<span class="req-star" aria-hidden="true">*</span></label>
+                <input class="mono-input" id="user" name="user" placeholder="例如 root 或 ubuntu" autocomplete="username" required>
                 <p class="field-note" id="userError"></p>
               </div>
-              <div class="field wide">
+              <div class="field">
                 <label for="jumpHost">跳板机</label>
-                <select id="jumpHost" name="jumpHost">
-                  <option value="">直接连接</option>
-                </select>
+                <div class="select-wrap">
+                  <select id="jumpHost" name="jumpHost">
+                    <option value="">直接连接（不使用跳板机）</option>
+                  </select>
+                  <svg class="icon select-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
                 <p class="field-note" id="jumpHostNote"></p>
               </div>
             </div>
           </section>
 
           <fieldset class="section">
-            <legend>登录方式</legend>
+            <legend>
+              <span class="section-icon" aria-hidden="true">
+                <svg class="icon" viewBox="0 0 24 24">
+                  <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </span>
+              <span>登录方式</span>
+            </legend>
+
             <div class="auth-switch" role="radiogroup" aria-label="登录方式">
               <label>
                 <input type="radio" name="authMode" value="password" checked>
-                <span>密码</span>
+                <span>
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                  密码
+                </span>
               </label>
               <label>
                 <input type="radio" name="authMode" value="key">
-                <span>私钥</span>
+                <span>
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                  </svg>
+                  私钥
+                </span>
               </label>
               <label>
                 <input type="radio" name="authMode" value="agent">
-                <span>系统密钥</span>
+                <span>
+                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  </svg>
+                  系统密钥
+                </span>
               </label>
             </div>
 
             <div id="passwordFields">
               <div class="field">
                 <div class="secret-line">
-                  <label for="password">密码</label>
+                  <label for="password">登录密码</label>
                   <span class="saved" id="passwordSaved" hidden>已设置</span>
                 </div>
-                <input id="password" name="password" type="password" autocomplete="new-password">
+                <div class="secret-input-wrap">
+                  <input id="password" name="password" type="password" autocomplete="new-password">
+                  <button class="peek-btn" type="button" data-peek="password" aria-label="显示或隐藏密码" aria-pressed="false">
+                    <svg class="icon eye-open" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="icon eye-off" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  </button>
+                </div>
                 <p class="field-note" id="passwordNote">已保存的密码不会显示。</p>
               </div>
             </div>
 
             <div class="grid" id="keyFields" hidden>
               <div class="field wide">
-                <label for="keyPath">私钥路径</label>
-                <input id="keyPath" name="keyPath" autocomplete="off">
+                <label for="keyPath">私钥文件路径<span class="req-star" aria-hidden="true">*</span></label>
+                <input class="mono-input" id="keyPath" name="keyPath" placeholder="例如 ~/.ssh/id_ed25519" autocomplete="off">
                 <p class="field-note" id="keyPathError"></p>
               </div>
               <div class="field wide">
                 <div class="secret-line">
-                  <label for="keyPassword">私钥密码</label>
+                  <label for="keyPassword">私钥口令（Passphrase）</label>
                   <span class="saved" id="keyPasswordSaved" hidden>已设置</span>
                 </div>
-                <input id="keyPassword" name="keyPassword" type="password" autocomplete="new-password">
+                <div class="secret-input-wrap">
+                  <input id="keyPassword" name="keyPassword" type="password" placeholder="私钥无口令可留空" autocomplete="new-password">
+                  <button class="peek-btn" type="button" data-peek="keyPassword" aria-label="显示或隐藏私钥口令" aria-pressed="false">
+                    <svg class="icon eye-open" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                      <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="icon eye-off" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <p class="field-note" id="agentFields" hidden>使用电脑里的 SSH 密钥。</p>
+            <div class="callout-note" id="agentFields" hidden>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+              </svg>
+              <span>使用本机 SSH Agent 或系统默认密钥（如 <code>~/.ssh</code>）自动登录，无需在此保存密码或私钥路径。</span>
+            </div>
           </fieldset>
 
-          <details id="moreSettings">
-            <summary>更多设置</summary>
+          <details class="advanced-card" id="moreSettings">
+            <summary>
+              <span class="summary-left">
+                <span class="section-icon" aria-hidden="true">
+                  <svg class="icon" viewBox="0 0 24 24">
+                    <line x1="4" y1="21" x2="4" y2="14"></line>
+                    <line x1="4" y1="10" x2="4" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12" y2="3"></line>
+                    <line x1="20" y1="21" x2="20" y2="16"></line>
+                    <line x1="20" y1="12" x2="20" y2="3"></line>
+                    <line x1="1" y1="14" x2="7" y2="14"></line>
+                    <line x1="9" y1="8" x2="15" y2="8"></line>
+                    <line x1="17" y1="16" x2="23" y2="16"></line>
+                  </svg>
+                </span>
+                <span class="summary-copy">
+                  <span class="summary-title">更多设置</span>
+                  <span class="summary-hint">Shell 类型 · 脚本目录 · 自动重连 · Sudo 密码 · 备注</span>
+                </span>
+              </span>
+              <span class="summary-right">
+                <svg class="icon summary-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </span>
+            </summary>
+
             <div class="details-body">
               <div class="grid">
                 <div class="field">
-                  <label for="shell">命令类型</label>
-                  <select id="shell" name="shell">
-                    <option value="bash">Bash</option>
-                    <option value="powershell">PowerShell</option>
-                    <option value="cmd">CMD</option>
-                  </select>
+                  <label for="shell">命令类型（Shell）</label>
+                  <div class="select-wrap">
+                    <select id="shell" name="shell">
+                      <option value="bash">Bash (Linux / macOS)</option>
+                      <option value="powershell">PowerShell (Windows)</option>
+                      <option value="cmd">CMD (Windows)</option>
+                    </select>
+                    <svg class="icon select-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </div>
                 </div>
                 <div class="field">
                   <label for="timeout">连接超时（秒）</label>
-                  <input id="timeout" name="timeout" type="number" min="1" inputmode="numeric">
+                  <input class="mono-input" id="timeout" name="timeout" type="number" min="1" inputmode="numeric">
                   <p class="field-note" id="timeoutError"></p>
                 </div>
                 <div class="field">
-                  <label for="group">分组</label>
-                  <input id="group" name="group" autocomplete="off">
+                  <label for="group">分组名称</label>
+                  <input id="group" name="group" placeholder="例如 production" autocomplete="off">
                 </div>
                 <div class="field">
-                  <label for="system">系统</label>
-                  <input id="system" name="system" autocomplete="off">
+                  <label for="system">系统标识</label>
+                  <input id="system" name="system" placeholder="例如 Ubuntu 24.04 / Windows" autocomplete="off">
                 </div>
                 <div class="field wide">
                   <label for="scriptsDir">服务器脚本目录</label>
-                  <input id="scriptsDir" name="scriptsDir" autocomplete="off">
+                  <input class="mono-input" id="scriptsDir" name="scriptsDir" placeholder="留空使用默认远端临时/脚本目录" autocomplete="off">
                 </div>
                 <div class="field wide">
                   <label for="scriptsLocalDir">本地脚本目录</label>
-                  <input id="scriptsLocalDir" name="scriptsLocalDir" autocomplete="off">
+                  <input class="mono-input" id="scriptsLocalDir" name="scriptsLocalDir" placeholder="批量上传脚本时读取的本地目录路径" autocomplete="off">
                 </div>
                 <div class="field">
-                  <div class="check-row">
-                    <input id="autoReconnect" name="autoReconnect" type="checkbox">
+                  <div class="toggle-card">
                     <label for="autoReconnect">断线后自动重连</label>
+                    <input class="switch-input" id="autoReconnect" name="autoReconnect" type="checkbox">
                   </div>
                 </div>
                 <div class="field">
                   <label for="reconnectInterval">重连间隔（秒）</label>
-                  <input id="reconnectInterval" name="reconnectInterval" type="number" min="0" step="0.5" inputmode="decimal">
-                  <p class="field-note" id="reconnectError"></p>
+                  <input class="mono-input" id="reconnectInterval" name="reconnectInterval" type="number" min="0" step="0.5" inputmode="decimal">
+                  <p class="field-note" id="reconnectIntervalError"></p>
                 </div>
                 <div class="field wide">
                   <div class="secret-line">
-                    <label for="sudoPassword">管理员密码</label>
+                    <label for="sudoPassword">管理员密码（Sudo）</label>
                     <span class="saved" id="sudoPasswordSaved" hidden>已设置</span>
                   </div>
-                  <input id="sudoPassword" name="sudoPassword" type="password" autocomplete="new-password">
-                  <p class="field-note">需要 sudo 时再填。</p>
+                  <div class="secret-input-wrap">
+                    <input id="sudoPassword" name="sudoPassword" type="password" autocomplete="new-password">
+                    <button class="peek-btn" type="button" data-peek="sudoPassword" aria-label="显示或隐藏管理员密码" aria-pressed="false">
+                      <svg class="icon eye-open" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                      <svg class="icon eye-off" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
+                    </button>
+                  </div>
+                  <p class="field-note">需要执行 sudo 提权命令时再填写。</p>
                 </div>
                 <div class="field wide">
-                  <label for="description">备注</label>
-                  <textarea id="description" name="description"></textarea>
+                  <label for="description">备注说明</label>
+                  <textarea id="description" name="description" placeholder="记录用途、环境注意事项或维护说明…"></textarea>
                 </div>
               </div>
             </div>
           </details>
 
           <div class="actions">
-            <button class="button danger" id="deleteButton" type="button">删除服务器</button>
-            <div class="action-right">
+            <div class="action-left">
+              <button class="button danger" id="deleteButton" type="button">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span id="deleteButtonLabel">删除服务器</span>
+              </button>
               <button class="button" id="cancelDeleteButton" type="button" hidden>不删了</button>
-              <button class="button primary" id="saveButton" type="submit">保存</button>
+            </div>
+            <div class="action-right">
+              <button class="button primary" id="saveButton" type="submit">
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span id="saveButtonLabel">保存配置</span>
+              </button>
             </div>
           </div>
         </form>
@@ -773,6 +1834,30 @@
     (function () {
       "use strict";
 
+      var THEME_KEY = "ssh-config-theme";
+
+      function readStoredTheme() {
+        try {
+          return window.localStorage.getItem(THEME_KEY);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function applyTheme(theme) {
+        if (theme === "dark") {
+          document.documentElement.setAttribute("data-theme", "dark");
+        } else {
+          document.documentElement.removeAttribute("data-theme");
+        }
+      }
+
+      var initialTheme = readStoredTheme();
+      if (!initialTheme && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        initialTheme = "dark";
+      }
+      applyTheme(initialTheme);
+
       var state = {
         servers: [],
         selected: null,
@@ -784,6 +1869,7 @@
         receivedInitialData: false,
         revision: null,
         dirty: false,
+        filterText: "",
         details: new Map()
       };
 
@@ -793,16 +1879,26 @@
       var toastTimer = null;
 
       var elements = {
+        themeToggle: document.getElementById("themeToggle"),
         serverCount: document.getElementById("serverCount"),
+        searchBox: document.getElementById("searchBox"),
+        serverSearch: document.getElementById("serverSearch"),
+        searchClear: document.getElementById("searchClear"),
         serverList: document.getElementById("serverList"),
         emptyList: document.getElementById("emptyList"),
+        emptyListText: document.getElementById("emptyListText"),
         newButton: document.getElementById("newButton"),
         loading: document.getElementById("loading"),
         form: document.getElementById("serverForm"),
         formTitle: document.getElementById("formTitle"),
+        modeTag: document.getElementById("modeTag"),
+        dirtyTag: document.getElementById("dirtyTag"),
         inheritTag: document.getElementById("inheritTag"),
+        sshPreviewText: document.getElementById("sshPreviewText"),
         saveButton: document.getElementById("saveButton"),
+        saveButtonLabel: document.getElementById("saveButtonLabel"),
         deleteButton: document.getElementById("deleteButton"),
+        deleteButtonLabel: document.getElementById("deleteButtonLabel"),
         cancelDeleteButton: document.getElementById("cancelDeleteButton"),
         moreSettings: document.getElementById("moreSettings"),
         toast: document.getElementById("toast"),
@@ -834,6 +1930,95 @@
         sudoPasswordSaved: document.getElementById("sudoPasswordSaved"),
         description: document.getElementById("description")
       };
+
+      elements.themeToggle.addEventListener("click", function () {
+        var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        applyTheme(next);
+        try {
+          window.localStorage.setItem(THEME_KEY, next);
+        } catch (error) {
+          /* Ignore storage restrictions in sandboxed iframes */
+        }
+      });
+
+      function createSvgIcon(paths) {
+        var ns = "http://www.w3.org/2000/svg";
+        var svg = document.createElementNS(ns, "svg");
+        svg.setAttribute("class", "icon");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("aria-hidden", "true");
+        paths.forEach(function (spec) {
+          var node = document.createElementNS(ns, spec.tag);
+          Object.keys(spec.attrs).forEach(function (k) {
+            node.setAttribute(k, spec.attrs[k]);
+          });
+          svg.appendChild(node);
+        });
+        return svg;
+      }
+
+      function serverIconFor(server) {
+        if (server.error) {
+          return createSvgIcon([
+            { tag: "circle", attrs: { cx: "12", cy: "12", r: "10" } },
+            { tag: "line", attrs: { x1: "12", y1: "8", x2: "12", y2: "12" } },
+            { tag: "line", attrs: { x1: "12", y1: "16", x2: "12.01", y2: "16" } }
+          ]);
+        }
+        if (server.shell === "powershell" || server.shell === "cmd") {
+          return createSvgIcon([
+            { tag: "rect", attrs: { x: "3", y: "4", width: "18", height: "16", rx: "2" } },
+            { tag: "polyline", attrs: { points: "8 10 11 12.5 8 15" } },
+            { tag: "line", attrs: { x1: "13", y1: "15", x2: "16", y2: "15" } }
+          ]);
+        }
+        return createSvgIcon([
+          { tag: "polyline", attrs: { points: "4 17 10 11 4 5" } },
+          { tag: "line", attrs: { x1: "12", y1: "19", x2: "20", y2: "19" } }
+        ]);
+      }
+
+      function resetSecretPeeks() {
+        document.querySelectorAll(".peek-btn").forEach(function (btn) {
+          var target = document.getElementById(btn.dataset.peek);
+          if (target) target.type = "password";
+          btn.setAttribute("aria-pressed", "false");
+        });
+      }
+
+      document.querySelectorAll(".peek-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var target = document.getElementById(btn.dataset.peek);
+          if (!target) return;
+          var reveal = target.type === "password";
+          target.type = reveal ? "text" : "password";
+          btn.setAttribute("aria-pressed", String(reveal));
+        });
+      });
+
+      function updateDirtyBadge() {
+        elements.dirtyTag.hidden = !state.dirty;
+      }
+
+      function updatePreview() {
+        var host = elements.host.value.trim();
+        var user = elements.user.value.trim();
+        var port = elements.port.value.trim();
+        var jump = elements.jumpHost.value;
+
+        if (!host && !user) {
+          elements.sshPreviewText.textContent = "填写下方地址与用户名后预览连接命令";
+          elements.sshPreviewText.classList.add("is-placeholder");
+          return;
+        }
+
+        var parts = ["ssh"];
+        if (jump) parts.push("-J " + jump);
+        if (port && port !== "22") parts.push("-p " + port);
+        parts.push((user ? user + "@" : "") + (host || "<服务器地址>"));
+        elements.sshPreviewText.textContent = parts.join(" ");
+        elements.sshPreviewText.classList.remove("is-placeholder");
+      }
 
       function request(method, params) {
         var id = nextRequestId++;
@@ -911,7 +2096,7 @@
         elements.saveButton.disabled = busy;
         elements.deleteButton.disabled = busy;
         elements.newButton.disabled = busy;
-        elements.saveButton.textContent = busy ? (label || "请稍候…") : "保存";
+        elements.saveButtonLabel.textContent = busy ? (label || "请稍候…") : "保存配置";
       }
 
       function setValue(element, value, fallback) {
@@ -943,43 +2128,97 @@
         }
       }
 
+      function matchesFilter(server, query) {
+        if (!query) return true;
+        var haystack = [
+          server.name,
+          server.display,
+          server.host,
+          server.user,
+          server.group,
+          server.system
+        ].filter(Boolean).join(" ").toLowerCase();
+        return haystack.indexOf(query) !== -1;
+      }
+
       function renderList() {
         elements.serverList.replaceChildren();
         elements.serverCount.textContent = state.servers.length + " 台";
-        elements.emptyList.hidden = state.servers.length !== 0;
+        elements.searchBox.hidden = state.servers.length < 2 && !state.filterText;
+
+        var query = state.filterText.trim().toLowerCase();
+        var visibleCount = 0;
 
         state.servers.forEach(function (server) {
+          if (!matchesFilter(server, query)) return;
+          visibleCount++;
+
           var button = document.createElement("button");
+          var avatar = document.createElement("span");
+          var body = document.createElement("span");
+          var top = document.createElement("span");
           var name = document.createElement("span");
           var meta = document.createElement("span");
           var host = document.createElement("span");
 
           button.type = "button";
-          button.className = "server-item";
+          button.className = "server-item" + (server.error ? " has-error" : "");
           button.dataset.server = server.name;
           button.setAttribute("aria-current", String(server.name === state.selected && !state.isNew));
 
+          avatar.className = "server-avatar";
+          avatar.appendChild(serverIconFor(server));
+
+          body.className = "server-body";
+          top.className = "server-top";
           name.className = "server-name";
           name.textContent = server.display || server.name;
+          top.appendChild(name);
+
+          if (!server.error && server.shell) {
+            var pill = document.createElement("span");
+            pill.className = "shell-pill";
+            pill.textContent = server.shell === "powershell" ? "ps" : server.shell;
+            top.appendChild(pill);
+          }
+
           meta.className = "server-meta";
           host.className = "server-host";
-          host.textContent = server.error ? "配置有误" : (server.host || server.name);
+          if (server.error) {
+            host.textContent = "配置有误";
+          } else {
+            var addr = (server.user ? server.user + "@" : "") + (server.host || server.name);
+            if (server.port && Number(server.port) !== 22) addr += ":" + server.port;
+            host.textContent = addr;
+          }
           meta.appendChild(host);
 
           if (server.jump_host) {
             var jump = document.createElement("span");
             jump.className = "jump-mark";
-            jump.textContent = "经 " + server.jump_host;
+            jump.textContent = "↪ " + server.jump_host;
             meta.appendChild(jump);
           }
 
-          button.appendChild(name);
-          button.appendChild(meta);
+          body.appendChild(top);
+          body.appendChild(meta);
+          button.appendChild(avatar);
+          button.appendChild(body);
           button.addEventListener("click", function () {
             selectServer(server.name);
           });
           elements.serverList.appendChild(button);
         });
+
+        if (state.servers.length === 0) {
+          elements.emptyListText.textContent = "还没有服务器，请在右侧创建。";
+          elements.emptyList.hidden = false;
+        } else if (visibleCount === 0) {
+          elements.emptyListText.textContent = "没有匹配的服务器。";
+          elements.emptyList.hidden = false;
+        } else {
+          elements.emptyList.hidden = true;
+        }
       }
 
       function renderSelection() {
@@ -992,7 +2231,7 @@
         elements.jumpHost.replaceChildren();
         var direct = document.createElement("option");
         direct.value = "";
-        direct.textContent = "直接连接";
+        direct.textContent = "直接连接（不使用跳板机）";
         elements.jumpHost.appendChild(direct);
 
         state.servers.forEach(function (server) {
@@ -1015,7 +2254,7 @@
           elements.jumpHost.value = selectedValue;
         }
         elements.jumpHostNote.textContent = state.servers.length < 2
-          ? "先添加另一台服务器，才能用它做跳板机。"
+          ? "添加至少两台服务器后，可选择其中一台作为跳板机。"
           : "";
       }
 
@@ -1051,21 +2290,24 @@
         elements.form.hidden = false;
       }
 
-      function showLoading(text) {
+      function showLoading(text, isError) {
         elements.form.hidden = true;
         elements.loading.hidden = false;
+        elements.loading.classList.toggle("is-error", Boolean(isError));
         elements.loading.textContent = text || "正在读取配置…";
       }
 
       function resetDeleteState() {
         state.deleteArmed = false;
-        elements.deleteButton.textContent = "删除服务器";
+        elements.deleteButtonLabel.textContent = "删除服务器";
         elements.deleteButton.classList.remove("armed");
         elements.cancelDeleteButton.hidden = true;
       }
 
       function populateForm(detail) {
         state.dirty = false;
+        updateDirtyBadge();
+        resetSecretPeeks();
         var server = detail && detail.server || {};
         var secrets = detail && detail.secrets || {};
         state.detail = detail || { server: {}, secrets: {} };
@@ -1073,6 +2315,7 @@
         resetDeleteState();
 
         elements.formTitle.textContent = state.isNew ? "新建服务器" : (server.name || state.selected);
+        elements.modeTag.hidden = !state.isNew;
         elements.inheritTag.hidden = !detail || !detail.inherited;
         elements.serverName.disabled = !state.isNew;
         setValue(elements.serverName, state.isNew ? "" : state.selected);
@@ -1101,9 +2344,9 @@
         elements.passwordSaved.hidden = !secrets.password;
         elements.keyPasswordSaved.hidden = !secrets.key_password;
         elements.sudoPasswordSaved.hidden = !secrets.sudo_password;
-        elements.password.placeholder = secrets.password ? "留空不修改" : "";
-        elements.keyPassword.placeholder = secrets.key_password ? "留空不修改" : "";
-        elements.sudoPassword.placeholder = secrets.sudo_password ? "留空不修改" : "";
+        elements.password.placeholder = secrets.password ? "已保存，留空不修改" : "输入远程登录密码";
+        elements.keyPassword.placeholder = secrets.key_password ? "已保存，留空不修改" : "私钥无口令可留空";
+        elements.sudoPassword.placeholder = secrets.sudo_password ? "已保存，留空不修改" : "选填，执行 sudo 时使用";
         elements.passwordNote.textContent = secrets.password
           ? "密码已设置，留空不会修改。"
           : "已保存的密码不会显示。";
@@ -1112,6 +2355,7 @@
           state.isNew ? "password" : (server.key ? "key" : (secrets.password ? "password" : "agent"))
         );
         renderJumpOptions(server.jump_host);
+        updatePreview();
         elements.deleteButton.hidden = state.isNew;
         elements.moreSettings.open = false;
         showForm();
@@ -1161,7 +2405,7 @@
         } catch (error) {
           if (error.name === "AbortError") return;
           if (token !== state.loadToken) return;
-          showLoading(humanError(error));
+          showLoading(humanError(error), true);
           showToast(humanError(error), true);
         }
       }
@@ -1334,7 +2578,7 @@
               });
           var failure = resultError(result);
           if (failure) throw failure;
-          showToast("已保存");
+          showToast("配置已保存");
           state.isNew = false;
           state.selected = name;
           var saved = extractPayload(result);
@@ -1351,14 +2595,14 @@
         if (state.busy || state.isNew || !state.selected) return;
         if (!state.deleteArmed) {
           state.deleteArmed = true;
-          elements.deleteButton.textContent = "确认删除";
+          elements.deleteButtonLabel.textContent = "确认删除";
           elements.deleteButton.classList.add("armed");
           elements.cancelDeleteButton.hidden = false;
           return;
         }
 
         var deletedName = state.selected;
-        setBusy(true, "请稍候…");
+        setBusy(true, "删除中…");
         try {
           var result = await callTool("ssh_ui_delete_server", { server: deletedName });
           var failure = resultError(result);
@@ -1400,15 +2644,50 @@
       }, { passive: true });
 
       document.querySelectorAll('input[name="authMode"]').forEach(function (radio) {
-        radio.addEventListener("change", updateAuthFields);
+        radio.addEventListener("change", function () {
+          state.dirty = true;
+          updateDirtyBadge();
+          updateAuthFields();
+        });
       });
+
+      elements.serverSearch.addEventListener("input", function () {
+        state.filterText = elements.serverSearch.value;
+        elements.searchClear.hidden = !state.filterText;
+        renderList();
+      });
+
+      elements.searchClear.addEventListener("click", function () {
+        elements.serverSearch.value = "";
+        state.filterText = "";
+        elements.searchClear.hidden = true;
+        renderList();
+        elements.serverSearch.focus();
+      });
+
       elements.newButton.addEventListener("click", startNew);
       elements.form.addEventListener("submit", saveServer);
-      elements.form.addEventListener("input", function () { state.dirty = true; });
+      elements.form.addEventListener("input", function (event) {
+        if (event.target === elements.serverSearch) return;
+        state.dirty = true;
+        updateDirtyBadge();
+        updatePreview();
+      });
+      elements.jumpHost.addEventListener("change", function () {
+        state.dirty = true;
+        updateDirtyBadge();
+        updatePreview();
+      });
+      elements.shell.addEventListener("change", function () {
+        state.dirty = true;
+        updateDirtyBadge();
+      });
       elements.deleteButton.addEventListener("click", deleteServer);
       elements.cancelDeleteButton.addEventListener("click", resetDeleteState);
       elements.autoReconnect.addEventListener("change", function () {
         elements.reconnectInterval.disabled = !elements.autoReconnect.checked;
+        state.dirty = true;
+        updateDirtyBadge();
       });
 
       var lastFocusRefresh = 0;
@@ -1424,14 +2703,14 @@
         applyServerList(legacyPayload);
       } else if (window.sshConfigBrowser) {
         refreshServers(null).catch(function (error) {
-          showLoading("无法读取配置");
+          showLoading("无法读取配置", true);
           showToast(humanError(error), true);
         });
       } else {
         window.setTimeout(function () {
           if (state.receivedInitialData) return;
           refreshServers(null).catch(function (error) {
-            showLoading("无法读取配置");
+            showLoading("无法读取配置", true);
             showToast(humanError(error), true);
           });
         }, 300);
