@@ -8,6 +8,8 @@ import json
 import re
 import sys
 import threading
+import time
+from concurrent.futures import CancelledError, ThreadPoolExecutor
 from dataclasses import dataclass
 from hashlib import sha1
 from pathlib import Path
@@ -24,7 +26,7 @@ from ssh_client import pool
 SERVER_INFO = {
     "name": "ssh-alias-mcp",
     "title": "SSH Alias MCP",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "Run configured SSH commands, scripts, aliases, uploads, and downloads.",
 }
 SUPPORTED_PROTOCOL_VERSIONS = [
@@ -57,6 +59,12 @@ CONFIG_UI_MIME_TYPE = "text/html;profile=mcp-app"
 CONFIG_UI_PATH = Path(__file__).resolve().parent / "ui" / "config.html"
 _config_web_server = None
 _config_web_lock = threading.Lock()
+_alias_cache_lock = threading.Lock()
+_alias_cache_revision = None
+_alias_cache = {}
+_alias_server_map = {}
+_response_mode = threading.local()
+_stdout_lock = threading.Lock()
 APP_ONLY_TOOL_META = {
     "ui": {"visibility": ["app"]},
     "openai/visibility": "private",
@@ -273,14 +281,14 @@ def _unique_alias_tool_name(server: str, alias_name: str, used: set) -> str:
 
 
 def _alias_tool_specs() -> Dict[str, ToolSpec]:
-    specs = {}
-    used = set()
-    for sv in pool.list_servers():
-        if sv.get("error"):
-            continue
-        server = sv["name"]
-        conn = pool.get(server)
-        for alias in conn.list_aliases():
+    global _alias_cache_revision, _alias_cache, _alias_server_map
+    with _alias_cache_lock:
+        revision = pool.config_revision()
+        if revision == _alias_cache_revision:
+            return _alias_cache
+        specs, servers, used = {}, {}, set()
+        for alias in pool.list_alias_metadata():
+            server = alias["server"]
             alias_name = alias["name"]
             tool_name = _unique_alias_tool_name(server, alias_name, used)
             desc = alias.get("desc", "")
@@ -296,7 +304,13 @@ def _alias_tool_specs() -> Dict[str, ToolSpec]:
                 annotations={"readOnlyHint": False, "destructiveHint": True},
                 handler=_run_alias_handler(server, alias_name),
             )
-    return specs
+            servers[tool_name] = server
+        # A concurrent edit invalidates the next lookup rather than tagging an
+        # older snapshot with the new revision.
+        _alias_cache_revision = revision
+        _alias_cache = specs
+        _alias_server_map = servers
+        return specs
 
 
 def _run_alias_handler(server: str, alias_name: str) -> Callable[[dict], dict]:
@@ -337,8 +351,22 @@ def _raw_output(result: dict) -> dict:
         lines.append("STDERR:\n" + result["stderr"].rstrip())
     if result.get("code", 0) != 0:
         lines.append(f"\nExited with code {result['code']}")
+    if result.get("timed_out"):
+        lines.append("\n[Command timed out; captured output may be incomplete.]")
+    if result.get("output_truncated"):
+        lines.append(
+            "\n[Output truncated: returned text is incomplete. "
+            f"Bytes actually read: stdout={result.get('stdout_bytes', 0)}, "
+            f"stderr={result.get('stderr_bytes', 0)}.]"
+        )
     text = "\n".join(lines) if lines else "(empty output)"
-    return mcp_text(text, result.get("code", 0) != 0)
+    output = mcp_text(text, result.get("code", 0) != 0)
+    metrics = {key: result[key] for key in (
+        "duration_ms", "connect_ms", "stdout_bytes", "stderr_bytes", "output_truncated", "timed_out"
+    ) if key in result}
+    if metrics:
+        output["_meta"] = {"execution": metrics}
+    return output
 
 
 def _with_execution_summary(result: dict, lines: list) -> dict:
@@ -350,6 +378,8 @@ def _with_execution_summary(result: dict, lines: list) -> dict:
 
 
 def _json_text(payload: dict, structured: bool = False) -> dict:
+    if getattr(_response_mode, "browser", False):
+        return {"structuredContent": payload, "isError": False}
     content = [{"type": "text", "text": json.dumps(payload, indent=2, ensure_ascii=False)}]
     if structured:
         return mcp_result(content, structured_content=payload)
@@ -438,8 +468,8 @@ def _handle_ssh_open_config(args: dict) -> dict:
     from config_web import ConfigWebServer
 
     with _config_web_lock:
-        if _config_web_server is None:
-            _config_web_server = ConfigWebServer(CONFIG_UI_PATH, handle_tools_call)
+        if _config_web_server is None or not _config_web_server.is_running:
+            _config_web_server = ConfigWebServer(CONFIG_UI_PATH, _browser_call_tool, pool.config_revision)
         server = _config_web_server
     opened = server.open_browser()
     servers = pool.list_servers()
@@ -450,6 +480,15 @@ def _handle_ssh_open_config(args: dict) -> dict:
         "count": len(servers),
         "servers": servers,
     }, structured=True)
+
+
+def _browser_call_tool(params):
+    previous = getattr(_response_mode, "browser", False)
+    _response_mode.browser = True
+    try:
+        return handle_tools_call(params)
+    finally:
+        _response_mode.browser = previous
 
 
 def _handle_ssh_get_server_config(args: dict) -> dict:
@@ -937,12 +976,155 @@ def _handle_message_item(item):
 
 def write_response(msg):
     line = json.dumps(msg, ensure_ascii=False) + "\n"
-    sys.stdout.write(line)
-    sys.stdout.flush()
+    with _stdout_lock:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+
+
+class RequestDispatcher:
+    """Bound expensive calls while keeping protocol control messages responsive."""
+
+    METADATA_TOOLS = frozenset({
+        "ssh_list_servers", "ssh_get_server_config", "ssh_open_config", "ssh_list_aliases",
+        "ssh_create_server", "ssh_update_server", "ssh_copy_server", "ssh_delete_server",
+        "ssh_ui_create_server", "ssh_ui_update_server", "ssh_ui_delete_server",
+    })
+
+    def __init__(self):
+        self.executors = {
+            "metadata": ThreadPoolExecutor(max_workers=2, thread_name_prefix="ssh-metadata"),
+            "remote": ThreadPoolExecutor(max_workers=8, thread_name_prefix="ssh-operation"),
+        }
+        # Limits include both running work and queued work.
+        self.capacity = {"metadata": threading.BoundedSemaphore(16), "remote": threading.BoundedSemaphore(32)}
+        self.server_lock = threading.Lock()
+        self.server_slots = {}
+
+    @classmethod
+    def lane(cls, req):
+        if not isinstance(req, dict) or "id" not in req:
+            return None
+        method = req.get("method")
+        if req.get("jsonrpc") != "2.0" or not isinstance(method, str):
+            return None
+        if method in {"tools/list", "resources/list", "resources/read"}:
+            return "metadata"
+        if method == "tools/call":
+            params = req.get("params")
+            name = params.get("name") if isinstance(params, dict) else None
+            return "metadata" if not isinstance(name, str) or name in cls.METADATA_TOOLS else "remote"
+        return None
+
+    def submit(self, msg):
+        if not isinstance(msg, list):
+            self._schedule(msg, lambda result: write_response(result) if result is not None else None)
+            return
+        if not msg:
+            write_response(jsonrpc_error(None, -32600, "Invalid Request"))
+            return
+        results = [None] * len(msg)
+        remaining = len(msg)
+        lock = threading.Lock()
+
+        def complete(index, result):
+            nonlocal remaining
+            with lock:
+                results[index] = result
+                remaining -= 1
+                if remaining:
+                    return
+                responses = [item for item in results if item is not None]
+            if responses:
+                write_response(responses)
+
+        for index, req in enumerate(msg):
+            self._schedule(req, lambda result, index=index: complete(index, result))
+
+    def _schedule(self, req, complete):
+        lane = self.lane(req)
+        if lane is None:
+            complete(_handle_message_item(req))
+            return
+        slot = self.capacity[lane]
+        if not slot.acquire(blocking=False):
+            complete(jsonrpc_error(req.get("id"), -32000, "Server busy; retry this request later"))
+            return
+        queued_at = time.monotonic()
+        try:
+            future = self.executors[lane].submit(self._execute, req, lane, queued_at)
+        except RuntimeError:
+            slot.release()
+            complete(jsonrpc_error(req.get("id"), -32000, "Server shutting down"))
+            return
+
+        def finished(task):
+            slot.release()
+            try:
+                result = task.result()
+            except CancelledError:
+                result = jsonrpc_error(req.get("id"), -32000, "Server shutting down")
+            except Exception:
+                result = jsonrpc_error(req.get("id"), -32603, "Request execution failed")
+            complete(result)
+
+        future.add_done_callback(finished)
+
+    def _server_key(self, req):
+        params = req.get("params")
+        if not isinstance(params, dict):
+            return None
+        args = params.get("arguments")
+        if isinstance(args, dict) and isinstance(args.get("server"), str):
+            name = args["server"].strip().lower()
+            return name.rsplit(".", 1)[0] if name.endswith((".yml", ".yaml")) else name
+        name = params.get("name")
+        if isinstance(name, str) and name not in STATIC_TOOLS:
+            _alias_tool_specs()
+            with _alias_cache_lock:
+                return _alias_server_map.get(name)
+        return None
+
+    def _execute(self, req, lane, queued_at):
+        started = time.monotonic()
+        server = None
+        semaphore = None
+        acquired = False
+        try:
+            if lane == "remote":
+                server = self._server_key(req)
+                if server:
+                    with self.server_lock:
+                        entry = self.server_slots.setdefault(server, [threading.BoundedSemaphore(4), 0])
+                        entry[1] += 1
+                        semaphore = entry[0]
+                    acquired = semaphore.acquire(blocking=False)
+                    if not acquired:
+                        return jsonrpc_error(req.get("id"), -32000, "Server operation limit reached; retry later")
+            result = _handle_message_item(req)
+            if (isinstance(result, dict) and isinstance(result.get("result"), dict)
+                    and req.get("method") == "tools/call"):
+                result["result"].setdefault("_meta", {})["dispatch"] = {
+                    "queue_ms": round((started - queued_at) * 1000, 2),
+                    "duration_ms": round((time.monotonic() - started) * 1000, 2),
+                }
+            return result
+        finally:
+            if semaphore is not None:
+                if acquired:
+                    semaphore.release()
+                with self.server_lock:
+                    self.server_slots[server][1] -= 1
+                    if not self.server_slots[server][1]:
+                        del self.server_slots[server]
+
+    def close(self):
+        for executor in self.executors.values():
+            executor.shutdown(wait=True, cancel_futures=True)
 
 
 def main():
     """MCP stdio main loop."""
+    dispatcher = RequestDispatcher()
     try:
         for line in sys.stdin:
             line = line.strip()
@@ -954,12 +1136,16 @@ def main():
                 write_response(jsonrpc_error(None, -32700, "Parse error"))
                 continue
 
-            resp = handle_message(req)
-            if resp is not None:
-                write_response(resp)
+            dispatcher.submit(req)
     finally:
-        if _config_web_server is not None:
-            _config_web_server.close()
+        try:
+            dispatcher.close()
+        finally:
+            try:
+                if _config_web_server is not None:
+                    _config_web_server.close()
+            finally:
+                pool.close_all()
 
 
 if __name__ == "__main__":

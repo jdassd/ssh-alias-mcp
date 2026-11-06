@@ -25,7 +25,17 @@ python cli.py my-server alias deploy
 
 Ask the agent to “open SSH server settings” to open the configuration page in your default browser. The page runs on `127.0.0.1` and uses the same saved configuration files; stored passwords are never returned to the agent or displayed in the form. If the browser cannot be launched automatically, open the `url` returned by `ssh_open_config`.
 
-You can also run `python cli.py open-config` directly. Keep that process running while using the page, then press Ctrl+C to stop it. With MCP, the page stays available while the MCP server is running.
+You can also run `python cli.py open-config` directly. Keep that process running while using the page, then press Ctrl+C to stop it. With MCP, the page is managed by the MCP process and can be reopened after idle expiry.
+
+## Performance and resource limits
+
+- Parsed YAML, inherited settings, and dynamic alias indexes are cached by configuration revision. Programmatic saves invalidate the cache immediately; external edits are detected by file signatures, checked at most every 250ms.
+- Remote MCP operations use a bounded executor (8 workers, at most 32 admitted requests and 4 running operations per server). Metadata uses a separate executor (2 workers, at most 16 admitted requests); protocol control requests remain responsive. A full lane returns an explicit busy error rather than accumulating work indefinitely.
+- Connections are created on demand, reused, and retired after 300 seconds idle. Active operations and jump-host dependencies keep their transport alive until they finish. Global `config.yaml` settings `server.max_connections` (default 64) and `server.idle_timeout` (seconds) control the connection cache.
+- Command output is drained without a fixed sleep after each block. Returned stdout and stderr share a 4 MiB budget, configurable with `server.max_output_bytes` globally or `max_output_bytes` in a server YAML. Reaching the output budget does not stop the command; excess output is consumed and omitted. A command timeout closes its channel and reports incomplete output. Results include byte counts, truncation, timeout, connection time, and total execution time; remote commands are never retried automatically.
+- Browser settings initialize without a fixed delay and reuse versioned, redacted snapshots. An idle settings server closes after 30 minutes and is recreated by the next `ssh_open_config` call.
+
+These changes preserve existing server files, names, aliases, and stored credentials. Configuration changes retire old connections after active operations finish; the next request uses the new settings.
 
 ## Documentation
 

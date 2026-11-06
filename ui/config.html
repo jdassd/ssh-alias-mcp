@@ -781,7 +781,10 @@
         busy: false,
         deleteArmed: false,
         loadToken: 0,
-        receivedInitialData: false
+        receivedInitialData: false,
+        revision: null,
+        dirty: false,
+        details: new Map()
       };
 
       var pendingRequests = new Map();
@@ -979,6 +982,12 @@
         });
       }
 
+      function renderSelection() {
+        elements.serverList.querySelectorAll("button[data-server]").forEach(function (button) {
+          button.setAttribute("aria-current", String(button.dataset.server === state.selected && !state.isNew));
+        });
+      }
+
       function renderJumpOptions(selectedValue) {
         elements.jumpHost.replaceChildren();
         var direct = document.createElement("option");
@@ -1056,6 +1065,7 @@
       }
 
       function populateForm(detail) {
+        state.dirty = false;
         var server = detail && detail.server || {};
         var secrets = detail && detail.secrets || {};
         state.detail = detail || { server: {}, secrets: {} };
@@ -1109,10 +1119,12 @@
 
       function startNew(force) {
         if (state.busy && force !== true) return;
+        ++state.loadToken;
+        if (window.sshConfigBrowser) window.sshConfigBrowser.cancelDetailsExcept(null);
         state.isNew = true;
         state.selected = null;
         state.detail = null;
-        renderList();
+        renderSelection();
         populateForm({ server: {}, secrets: {}, inherited: false });
         elements.serverName.focus();
         rememberSelection();
@@ -1120,13 +1132,19 @@
 
       async function selectServer(name, force) {
         if (!name || (state.busy && force !== true)) return;
+        if (window.sshConfigBrowser) window.sshConfigBrowser.cancelDetailsExcept(name);
         state.isNew = false;
         state.selected = name;
         state.detail = null;
         var token = ++state.loadToken;
-        renderList();
-        showLoading("正在读取配置…");
+        renderSelection();
         rememberSelection();
+        var cached = state.details.get(name);
+        if (cached && cached.revision === state.revision) {
+          populateForm(cached.detail);
+          return;
+        }
+        showLoading("正在读取配置…");
 
         try {
           var result = await callTool("ssh_get_server_config", { server: name });
@@ -1135,8 +1153,13 @@
           if (token !== state.loadToken) return;
           var detail = extractPayload(result);
           if (!detail || !detail.server) throw new Error("读取配置失败");
+          if (window.sshConfigBrowser && detail.revision !== state.revision) {
+            return refreshServers(name);
+          }
+          state.details.set(name, { revision: state.revision, detail: detail });
           populateForm(detail);
         } catch (error) {
+          if (error.name === "AbortError") return;
           if (token !== state.loadToken) return;
           showLoading(humanError(error));
           showToast(humanError(error), true);
@@ -1146,35 +1169,50 @@
       function applyServerList(payload, preferredName) {
         if (!payload || !Array.isArray(payload.servers)) return;
         state.receivedInitialData = true;
+        var changed = !payload.revision || payload.revision !== state.revision;
+        state.revision = payload.revision || null;
         state.servers = payload.servers;
-        renderList();
+        if (changed) {
+          state.details.clear();
+          renderList();
+        }
+        if (state.isNew) {
+          renderSelection();
+          return;
+        }
 
         var savedState = window.openai && window.openai.widgetState;
         var remembered = savedState && savedState.selectedId;
-        var nextName = preferredName || state.selected || remembered;
+        var nextName = preferredName || state.selected || payload.selected || remembered;
         var exists = state.servers.some(function (server) {
           return server.name === nextName && !server.error;
         });
 
-        if (exists) {
-          return selectServer(nextName, true);
+        if (!exists) {
+          var first = state.servers.find(function (server) { return !server.error; });
+          nextName = first && first.name;
         }
-
-        var first = state.servers.find(function (server) {
-          return !server.error;
-        });
-        if (first) return selectServer(first.name, true);
-        return startNew(true);
+        if (!nextName) return startNew(true);
+        if (payload.detail && payload.detail.name === nextName) {
+          state.details.set(nextName, { revision: state.revision, detail: payload.detail });
+        }
+        return selectServer(nextName, true);
       }
 
-      async function refreshServers(preferredName) {
-        var result = await callTool("ssh_list_servers", {});
+      async function refreshServers(preferredName, preserveEdits) {
+        var selectionAtStart = state.selected;
+        var loadTokenAtStart = state.loadToken;
+        var result = window.sshConfigBrowser
+          ? await callTool("ssh_ui_bootstrap", { selected: preferredName || state.selected || null })
+          : await callTool("ssh_list_servers", {});
         var failure = resultError(result);
         if (failure) throw failure;
         var payload = extractPayload(result);
         if (!payload || !Array.isArray(payload.servers)) {
           throw new Error("刷新服务器列表失败");
         }
+        if (preserveEdits && (state.dirty || state.isNew || state.busy
+            || state.selected !== selectionAtStart || state.loadToken !== loadTokenAtStart)) return;
         await applyServerList(payload, preferredName);
       }
 
@@ -1299,7 +1337,9 @@
           showToast("已保存");
           state.isNew = false;
           state.selected = name;
-          await refreshServers(name);
+          var saved = extractPayload(result);
+          if (saved && saved.snapshot) await applyServerList(saved.snapshot, name);
+          else await refreshServers(name);
         } catch (error) {
           showToast(humanError(error), true);
         } finally {
@@ -1326,7 +1366,9 @@
           state.selected = null;
           state.detail = null;
           showToast("已删除 " + deletedName);
-          await refreshServers(null);
+          var deleted = extractPayload(result);
+          if (deleted && deleted.snapshot) await applyServerList(deleted.snapshot, null);
+          else await refreshServers(null);
         } catch (error) {
           showToast(humanError(error), true);
         } finally {
@@ -1362,15 +1404,29 @@
       });
       elements.newButton.addEventListener("click", startNew);
       elements.form.addEventListener("submit", saveServer);
+      elements.form.addEventListener("input", function () { state.dirty = true; });
       elements.deleteButton.addEventListener("click", deleteServer);
       elements.cancelDeleteButton.addEventListener("click", resetDeleteState);
       elements.autoReconnect.addEventListener("change", function () {
         elements.reconnectInterval.disabled = !elements.autoReconnect.checked;
       });
 
+      var lastFocusRefresh = 0;
+      window.addEventListener("focus", function () {
+        if (!window.sshConfigBrowser || !state.receivedInitialData || state.busy || state.isNew || state.dirty) return;
+        if (Date.now() - lastFocusRefresh < 1000) return;
+        lastFocusRefresh = Date.now();
+        refreshServers(state.selected, true).catch(function (error) { showToast(humanError(error), true); });
+      });
+
       var legacyPayload = extractPayload(window.openai && window.openai.toolOutput);
       if (legacyPayload && Array.isArray(legacyPayload.servers)) {
         applyServerList(legacyPayload);
+      } else if (window.sshConfigBrowser) {
+        refreshServers(null).catch(function (error) {
+          showLoading("无法读取配置");
+          showToast(humanError(error), true);
+        });
       } else {
         window.setTimeout(function () {
           if (state.receivedInitialData) return;

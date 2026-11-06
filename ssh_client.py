@@ -20,15 +20,19 @@ Usage:
     claude mcp add ssh-alias-mcp python <path>/mcp_server.py
 """
 import hashlib
+import copy
 import io
 import os
 import re
+import select
 import sys
 import time
 import threading
 import uuid
 from pathlib import Path
 from typing import Dict, Optional, Any
+from contextlib import contextmanager
+from functools import wraps
 
 import paramiko
 import yaml
@@ -187,6 +191,22 @@ CMD_TEMPLATES = {
 }
 
 
+def _connection_operation(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self.operation():
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
+def _configuration_write(method):
+    @wraps(method)
+    def wrapped(self, *args, **kwargs):
+        with self._write_lock:
+            return method(self, *args, **kwargs)
+    return wrapped
+
+
 class SSHConnection:
     """SSH connection wrapper with direct, proxy, and jump-host transports."""
 
@@ -254,19 +274,85 @@ class SSHConnection:
         self._closed = False
         self._jump_connection = None
         self._jump_channel = None
+        self._lifecycle_lock = threading.RLock()
+        self._operation_local = threading.local()
+        self._active_operations = 0
+        self._dependents = 0
+        self._retired = False
+        self.max_output_bytes = max(1024, int(cfg.get(
+            "max_output_bytes", server_defaults.get("max_output_bytes", 4 * 1024 * 1024)
+        )))
+        self._last_used = time.monotonic()
+
+    @contextmanager
+    def operation(self):
+        """Lease this transport; configuration changes retire it after use."""
+        depth = getattr(self._operation_local, "depth", 0)
+        with self._lifecycle_lock:
+            if self._retired and depth == 0:
+                raise RuntimeError("SSH configuration changed; start a new request.")
+            if depth == 0:
+                self._active_operations += 1
+            self._operation_local.depth = depth + 1
+        try:
+            yield
+        finally:
+            with self._lifecycle_lock:
+                self._operation_local.depth -= 1
+                if depth == 0:
+                    self._active_operations -= 1
+                    self._last_used = time.monotonic()
+                should_close = self._retired and not self._active_operations and not self._dependents
+            if should_close:
+                self._close_when_available()
+
+    def _retain_dependency(self):
+        with self._lifecycle_lock:
+            if self._retired:
+                raise RuntimeError("SSH jump-host configuration changed; start a new request.")
+            self._dependents += 1
+
+    def _release_dependency(self):
+        with self._lifecycle_lock:
+            self._dependents -= 1
+            should_close = self._retired and not self._active_operations and not self._dependents
+        if should_close:
+            self._close_when_available()
+
+    def _close_when_available(self):
+        # A background handshake may still own this lock. It observes retirement
+        # before returning, so configuration writes need not wait on network I/O.
+        if self._connect_lock.acquire(blocking=False):
+            try:
+                self._close_target_connection()
+            finally:
+                self._connect_lock.release()
+
+    def idle_for(self, now):
+        with self._lifecycle_lock:
+            if self._active_operations or self._dependents:
+                return 0.0
+            return now - self._last_used
 
     def connect(self):
         """Connect for an explicit request, bypassing any reconnect cooldown."""
         with self._connect_lock:
-            self._closed = False
+            if self._retired and not getattr(self._operation_local, "depth", 0) and not self._dependents:
+                raise RuntimeError("SSH connection has been retired.")
+            self._closed = self._retired
             if self._client and self._is_alive():
-                self._last_used = time.time()
+                self._last_used = time.monotonic()
                 return
             try:
                 self._connect_once()
             except Exception:
+                if self._retired and not self._active_operations and not self._dependents:
+                    self._close_target_connection()
                 self._record_connect_failure()
                 raise
+            if self._retired and not self._active_operations and not self._dependents:
+                self._close_target_connection()
+                raise RuntimeError("SSH connection was retired while connecting.")
             self._connect_failures = 0
             self._reconnect_wakeup.set()
 
@@ -330,7 +416,7 @@ class SSHConnection:
         while True:
             with self._connect_lock:
                 if (
-                    self._closed
+                    self._closed or self._retired
                     or not self.auto_reconnect
                     or (self._client and self._is_alive())
                 ):
@@ -349,7 +435,7 @@ class SSHConnection:
 
             with self._connect_lock:
                 if (
-                    self._closed
+                    self._closed or self._retired
                     or not self.auto_reconnect
                     or (self._client and self._is_alive())
                 ):
@@ -358,6 +444,9 @@ class SSHConnection:
                     self._connect_once()
                 except Exception as exc:
                     self._connect_failures += 1
+                    if self._retired:
+                        self._close_target_connection()
+                        return
                     phase = (
                         "fast"
                         if self._connect_failures < self.reconnect_fast_attempts
@@ -371,12 +460,15 @@ class SSHConnection:
                     )
                     continue
                 self._connect_failures = 0
+                if self._retired:
+                    self._close_target_connection()
                 return
 
     def _close_target_connection(self):
         """Close the target client and its forwarding channel, not the shared jump host."""
         client = self._client
         channel = self._jump_channel
+        jump = self._jump_connection
         self._client = None
         self._jump_channel = None
         self._jump_connection = None
@@ -391,6 +483,8 @@ class SSHConnection:
                 channel.close()
             except Exception:
                 pass
+        if jump is not None:
+            jump._release_dependency()
 
     def _connect_via_jump(self):
         """Connect to the target through one pooled SSH jump host."""
@@ -400,13 +494,19 @@ class SSHConnection:
             )
 
         jump = self._connection_pool.get(self.jump_host)
-        jump.connect()
+        jump._retain_dependency()
+        try:
+            jump.connect()
+        except Exception:
+            jump._release_dependency()
+            raise
         jump_transport = (
             jump._client.get_transport()
             if jump._client is not None
             else None
         )
         if jump_transport is None or not jump_transport.is_active():
+            jump._release_dependency()
             raise paramiko.SSHException(
                 f"Jump host connection is not active: {self.jump_host}"
             )
@@ -440,11 +540,12 @@ class SSHConnection:
             self._jump_connection = jump
             self._jump_channel = channel
             self._client = client
-            self._last_used = time.time()
+            self._last_used = time.monotonic()
         except Exception:
             client.close()
             if channel is not None:
                 channel.close()
+            jump._release_dependency()
             raise
 
     def _connect_proxy_with(self, proxy: dict):
@@ -465,7 +566,7 @@ class SSHConnection:
             transport.set_keepalive(60)
             c._transport = transport
             self._client = c
-            self._last_used = time.time()
+            self._last_used = time.monotonic()
         except Exception:
             if transport is not None:
                 transport.close()
@@ -488,7 +589,7 @@ class SSHConnection:
             )
             c.get_transport().set_keepalive(60)
             self._client = c
-            self._last_used = time.time()
+            self._last_used = time.monotonic()
         except Exception:
             c.close()
             raise
@@ -522,6 +623,7 @@ class SSHConnection:
         except Exception:
             pass
 
+    @_connection_operation
     def download(self, remote_path: str, local_path: str, timeout: int = 300,
                  pattern: str = None, overwrite: bool = True, sudo: bool = False) -> dict:
         """Download a file or directory from remote to local via SFTP.
@@ -555,6 +657,7 @@ class SSHConnection:
                           timeout=10, sudo=True)
             actual_remote = tmp_stage
 
+        sftp = None
         try:
             # Check if (staged) remote is a directory
             sftp = paramiko.SFTPClient.from_transport(self._client.get_transport())
@@ -584,6 +687,11 @@ class SSHConnection:
             return self._download_dir(sftp, actual_remote, local_path, pattern, timeout,
                                       display_remote=remote_path)
         finally:
+            if sftp is not None:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
             if tmp_stage:
                 self.run(self._cmd("rm_dir", path=tmp_stage), timeout=15, sudo=True)
 
@@ -690,6 +798,7 @@ class SSHConnection:
             ).strip("\n")
         return result
 
+    @_connection_operation
     def run(self, cmd: str, timeout: int = None, sudo: bool = False, stream_cb: Any = None) -> dict:
         """Execute a remote command, returns {stdout, stderr, code}.
 
@@ -704,48 +813,64 @@ class SSHConnection:
         cmd = self._check_command(cmd)
         if sudo:
             cmd = self._wrap_sudo(cmd)
+        started = time.monotonic()
         self.connect()
-        ch = self._client.get_transport().open_session()
-        ch.settimeout(timeout)
-        ch.exec_command(cmd)
-
+        connected = time.monotonic()
+        ch = self._client.get_transport().open_session(timeout=timeout)
         stdout_data, stderr_data = [], []
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            if ch.recv_ready():
-                chunk = ch.recv(65536)
-                stdout_data.append(chunk)
-                if stream_cb:
-                    stream_cb(chunk.decode(errors="replace"), False)
-            if ch.recv_stderr_ready():
-                chunk = ch.recv_stderr(65536)
-                stderr_data.append(chunk)
-                if stream_cb:
-                    stream_cb(chunk.decode(errors="replace"), True)
-            if ch.exit_status_ready() and not ch.recv_ready() and not ch.recv_stderr_ready():
-                break
-            time.sleep(0.05)
-
-        while ch.recv_ready():
-            chunk = ch.recv(65536)
-            stdout_data.append(chunk)
-            if stream_cb:
-                stream_cb(chunk.decode(errors="replace"), False)
-        while ch.recv_stderr_ready():
-            chunk = ch.recv_stderr(65536)
-            stderr_data.append(chunk)
-            if stream_cb:
-                stream_cb(chunk.decode(errors="replace"), True)
-
-        rc = ch.recv_exit_status() if ch.exit_status_ready() else -1
-        ch.close()
+        byte_counts = [0, 0]
+        retained = 0
+        timed_out = False
+        try:
+            ch.settimeout(timeout)
+            ch.exec_command(cmd)
+            deadline = time.monotonic() + timeout
+            while True:
+                progress = False
+                # Alternate streams and recheck the deadline between chunks.
+                for index, ready, receive, output in (
+                    (0, ch.recv_ready, ch.recv, stdout_data),
+                    (1, ch.recv_stderr_ready, ch.recv_stderr, stderr_data),
+                ):
+                    if ready():
+                        chunk = receive(65536)
+                        if chunk:
+                            progress = True
+                            byte_counts[index] += len(chunk)
+                            keep = min(len(chunk), self.max_output_bytes - retained)
+                            if keep:
+                                output.append(chunk[:keep])
+                                retained += keep
+                            if stream_cb:
+                                stream_cb(chunk.decode(errors="replace"), bool(index))
+                if ch.exit_status_ready() and not ch.recv_ready() and not ch.recv_stderr_ready():
+                    break
+                if ch.closed and not ch.recv_ready() and not ch.recv_stderr_ready():
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True
+                    break
+                if not progress:
+                    # Read readiness avoids a fixed delay after each output block.
+                    select.select([ch], [], [], min(0.1, remaining))
+            rc = ch.recv_exit_status() if not timed_out and ch.exit_status_ready() else -1
+        finally:
+            ch.close()
         result = {
             "stdout": b"".join(stdout_data).decode(errors="replace"),
             "stderr": b"".join(stderr_data).decode(errors="replace"),
             "code": rc,
+            "output_truncated": sum(byte_counts) > retained or timed_out,
+            "stdout_bytes": byte_counts[0],
+            "stderr_bytes": byte_counts[1],
+            "timed_out": timed_out,
+            "duration_ms": round((time.monotonic() - started) * 1000, 2),
+            "connect_ms": round((connected - started) * 1000, 2),
         }
         return self._strip_sudo_noise(result) if sudo else result
 
+    @_connection_operation
     def upload_script(self, local_path: str, script_name: str = None,
                       run_immediately: bool = False, timeout: int = 300,
                       overwrite: bool = True, sudo: bool = False) -> dict:
@@ -776,16 +901,14 @@ class SSHConnection:
         if sudo:
             tmp_prefix = self._cmd("tmp_prefix")
             tmp_path = f"{tmp_prefix}/.staging_{uuid.uuid4().hex[:8]}_{script_name}"
-            sftp = paramiko.SFTPClient.from_transport(self._client.get_transport())
-            sftp.putfo(io.BytesIO(script_content), tmp_path)
-            sftp.close()
+            with paramiko.SFTPClient.from_transport(self._client.get_transport()) as sftp:
+                sftp.putfo(io.BytesIO(script_content), tmp_path)
             self.run(self._cmd("install", tmp=tmp_path, target=remote_path), timeout=15, sudo=True)
         else:
-            sftp = paramiko.SFTPClient.from_transport(self._client.get_transport())
-            sftp.putfo(io.BytesIO(script_content), remote_path)
-            if self._is_unix():
-                sftp.chmod(remote_path, 0o755)
-            sftp.close()
+            with paramiko.SFTPClient.from_transport(self._client.get_transport()) as sftp:
+                sftp.putfo(io.BytesIO(script_content), remote_path)
+                if self._is_unix():
+                    sftp.chmod(remote_path, 0o755)
 
         result = {
             "stdout": f"Script uploaded to {remote_path}\n",
@@ -804,11 +927,13 @@ class SSHConnection:
 
         return result
 
+    @_connection_operation
     def list_scripts(self, sudo: bool = False) -> dict:
         """List uploaded scripts on the remote server"""
         self.connect()
         return self.run(self._cmd("list_dir", path=self.scripts_dir), timeout=30, sudo=sudo)
 
+    @_connection_operation
     def run_script(self, script_name: str, timeout: int = 300, sudo: bool = False, stream_cb: Any = None) -> dict:
         """Run an already-uploaded script.
 
@@ -844,6 +969,7 @@ class SSHConnection:
         """Check if shell is Unix-like."""
         return self.shell == "bash"
 
+    @_connection_operation
     def upload_all_scripts(self, sudo: bool = False, overwrite: bool = True) -> dict:
         """Upload all scripts referenced by alias 'script' fields.
 
@@ -858,31 +984,30 @@ class SSHConnection:
         self.connect()
         self.run(self._cmd("mkdir", path=self.scripts_dir), timeout=10, sudo=sudo)
 
-        sftp = paramiko.SFTPClient.from_transport(self._client.get_transport())
         msg, fail = [], []
         seen_hashes = {}
         base = self._scripts_base()
-        for a in script_aliases:
-            src = (base / a["script"]).resolve()
-            if not src.is_file():
-                fail.append(f"  x {a['script']}: file not found at {src}")
-                continue
-            content_hash = hashlib.md5(src.read_bytes()).hexdigest()
-            if content_hash in seen_hashes:
-                prev_alias = seen_hashes[content_hash]
-                fail.append(f"  x {a['script']}: duplicate content of {prev_alias}")
-                continue
-            seen_hashes[content_hash] = a["name"]
-            remote_name = src.name
-            if src.is_relative_to(base):
-                rel = src.relative_to(base).as_posix()
-                remote = f"{self.scripts_dir}/{rel}"
-            else:
-                remote = f"{self.scripts_dir}/external/{remote_name}"
-            remote_parent = str(Path(remote).parent)
-            self.run(self._cmd("mkdir", path=remote_parent), timeout=10, sudo=sudo)
-            self._upload_single(sftp, src, remote, sudo, a, msg, fail, overwrite)
-        sftp.close()
+        with paramiko.SFTPClient.from_transport(self._client.get_transport()) as sftp:
+            for a in script_aliases:
+                src = (base / a["script"]).resolve()
+                if not src.is_file():
+                    fail.append(f"  x {a['script']}: file not found at {src}")
+                    continue
+                content_hash = hashlib.md5(src.read_bytes()).hexdigest()
+                if content_hash in seen_hashes:
+                    prev_alias = seen_hashes[content_hash]
+                    fail.append(f"  x {a['script']}: duplicate content of {prev_alias}")
+                    continue
+                seen_hashes[content_hash] = a["name"]
+                remote_name = src.name
+                if src.is_relative_to(base):
+                    rel = src.relative_to(base).as_posix()
+                    remote = f"{self.scripts_dir}/{rel}"
+                else:
+                    remote = f"{self.scripts_dir}/external/{remote_name}"
+                remote_parent = str(Path(remote).parent)
+                self.run(self._cmd("mkdir", path=remote_parent), timeout=10, sudo=sudo)
+                self._upload_single(sftp, src, remote, sudo, a, msg, fail, overwrite)
 
         out = f"Upload done ({len(msg)}/{len(script_aliases)})\n"
         out += "\n".join(msg + fail) + "\n"
@@ -933,6 +1058,7 @@ class SSHConnection:
         except Exception as e:
             fail.append(f"  x {alias['script']}: {e}")
 
+    @_connection_operation
     def run_alias(self, name: str, stream_cb: Any = None) -> dict:
         """Run an alias-defined quick command"""
         target = None
@@ -987,43 +1113,222 @@ class SSHConnection:
         return aliases
 
     def close(self):
-        """Close the SSH connection"""
-        with self._connect_lock:
+        """Retire the connection without interrupting borrowed channels."""
+        with self._lifecycle_lock:
+            self._retired = True
             self._closed = True
             self._reconnect_wakeup.set()
-            self._close_target_connection()
+            should_close = not self._active_operations and not self._dependents
+        if should_close:
+            self._close_when_available()
 
 
 class ConnectionPool:
     """SSH connection pool — manages connection reuse by server name"""
-    _lock = threading.Lock()
 
     def __init__(self):
+        self._lock = threading.RLock()
+        self._write_lock = threading.RLock()
+        self._config_lock = threading.RLock()
         self._pool: Dict[str, SSHConnection] = {}
+        self._pool_revision = None
+        self._revision = 0
+        self._config_signature = None
+        self._config_checked_until = 0.0
+        self._config_dependencies = set()
+        self._yaml_cache = {}
+        self._snapshot_read_signatures = {}
+        self._configs = {}
+        self._raw_configs = {}
+        self._config_errors = {}
+        self._reaper_stop = threading.Event()
+        self._reaper_thread = None
+        defaults = global_config.get("server", {})
+        self.idle_timeout = max(1.0, float(defaults.get("idle_timeout", 300)))
+        self.max_connections = max(1, int(defaults.get("max_connections", 64)))
+
+    @staticmethod
+    def _file_signature(path):
+        try:
+            stat = path.stat()
+            return (str(path), stat.st_mtime_ns, stat.st_size, stat.st_ino, stat.st_ctime_ns)
+        except FileNotFoundError:
+            return (str(path), None)
+
+    def _cached_yaml(self, path):
+        path = path.resolve()
+        for _attempt in range(3):
+            signature = self._file_signature(path)
+            self._snapshot_read_signatures[path] = signature
+            cached = self._yaml_cache.get(path)
+            if cached is not None and cached[0] == signature:
+                return copy.deepcopy(cached[1])
+            value = load_yaml(str(path))
+            if signature == self._file_signature(path):
+                self._yaml_cache[path] = (signature, value)
+                return copy.deepcopy(value)
+        raise RuntimeError("Configuration changed while it was being read; retry the request.")
+
+    def _refresh_config_cache(self):
+        """Caller holds _config_lock. External edits are detected within 250ms."""
+        global global_config
+        now = time.monotonic()
+        if now < self._config_checked_until:
+            return
+        files = sorted(SERVERS_DIR.glob("*.yml")) if SERVERS_DIR.exists() else []
+        tracked = set(files) | self._config_dependencies | {CONFIG_PATH}
+        signature = tuple(self._file_signature(p) for p in sorted(tracked))
+        self._config_checked_until = now + 0.25
+        if signature == self._config_signature:
+            return
+
+        self._snapshot_read_signatures = {}
+        if CONFIG_PATH.exists():
+            updated_global = self._cached_yaml(CONFIG_PATH)
+            if not isinstance(updated_global, dict):
+                raise ValueError("Global SSH configuration must be an object.")
+            global_config = updated_global
+        else:
+            global_config = load_global_config()
+        defaults = global_config.get("server", {})
+        self.idle_timeout = max(1.0, float(defaults.get("idle_timeout", 300)))
+        self.max_connections = max(1, int(defaults.get("max_connections", 64)))
+        configs, raw_configs, errors, dependencies = {}, {}, {}, set()
+        for path in files:
+            name = path.stem
+            try:
+                cfg = self._cached_yaml(path)
+                raw_configs[name] = copy.deepcopy(cfg)
+                extends = cfg.pop("extends", [])
+                if extends:
+                    base_cfg = dict(cfg)
+                    for ext_file in extends:
+                        ext_path = (path.parent / ext_file).resolve()
+                        dependencies.add(ext_path)
+                        if not ext_path.exists():
+                            continue
+                        ext_cfg = self._cached_yaml(ext_path)
+                        ext_server = ext_cfg.get("server", {})
+                        if ext_server:
+                            base_cfg["server"] = {**ext_server, **base_cfg.get("server", {})}
+                        ext_aliases = ext_cfg.get("aliases", [])
+                        if ext_aliases:
+                            existing = {a["name"] for a in base_cfg.get("aliases", [])}
+                            base_cfg["aliases"] = [
+                                a for a in ext_aliases if a.get("name") not in existing
+                            ] + base_cfg.get("aliases", [])
+                        for key in ("whitelist", "blacklist", "command_template",
+                                    "allowed_local_paths", "allowed_remote_paths", "scripts_dir"):
+                            if key not in base_cfg and key in ext_cfg:
+                                base_cfg[key] = ext_cfg[key]
+                        if "proxy" in ext_cfg and "proxy" not in base_cfg:
+                            base_cfg["proxy"] = ext_cfg["proxy"]
+                    cfg = base_cfg
+                configs[name] = cfg
+            except Exception as exc:
+                errors[name] = exc
+
+        self._configs, self._raw_configs, self._config_errors = configs, raw_configs, errors
+        self._config_dependencies = dependencies
+        tracked = set(files) | dependencies | {CONFIG_PATH}
+        self._config_signature = tuple(
+            self._snapshot_read_signatures[p.resolve()]
+            if p.resolve() in self._snapshot_read_signatures else self._file_signature(p)
+            for p in sorted(tracked)
+        )
+        # Bound retained parsed data when server files are removed or inheritance changes.
+        valid_paths = {p.resolve() for p in tracked}
+        self._yaml_cache = {p: v for p, v in self._yaml_cache.items() if p in valid_paths}
+        self._revision += 1
+
+    def config_revision(self):
+        with self._config_lock:
+            self._refresh_config_cache()
+            return self._revision
+
+    def list_alias_metadata(self):
+        with self._config_lock:
+            self._refresh_config_cache()
+            aliases = []
+            for name, cfg in self._configs.items():
+                try:
+                    self._validate_server_config(cfg)
+                except (ValueError, TypeError):
+                    continue
+                for alias in cfg.get("aliases", []) or []:
+                    if not isinstance(alias, dict):
+                        continue
+                    item = {
+                        "server": name, "name": alias.get("name", ""),
+                        "type": "script" if "script" in alias else "inline",
+                        "desc": alias.get("desc", ""),
+                        "timeout": alias.get("timeout", 300),
+                        "sudo": alias.get("sudo", False),
+                    }
+                    if not isinstance(item["name"], str) or not item["name"]:
+                        continue
+                    for key in ("inline", "script"):
+                        if key in alias:
+                            item[key] = copy.deepcopy(alias[key])
+                    aliases.append(item)
+            return aliases
+
+    def _ensure_reaper(self):
+        # Called with the pool lock held; metadata enumeration never creates a transport.
+        if self._reaper_thread is None or not self._reaper_thread.is_alive():
+            self._reaper_stop.clear()
+            self._reaper_thread = threading.Thread(
+                target=self._reap_idle, name="ssh-pool-idle", daemon=True
+            )
+            self._reaper_thread.start()
+
+    def _reap_idle(self):
+        while not self._reaper_stop.wait(min(30.0, self.idle_timeout / 2)):
+            now = time.monotonic()
+            with self._lock:
+                expired = [key for key, conn in self._pool.items()
+                           if conn.idle_for(now) >= self.idle_timeout]
+                retired = [self._pool.pop(key) for key in expired]
+            for conn in retired:
+                conn.close()
 
     def get(self, server_name: str) -> SSHConnection:
         """Get or create an SSHConnection (lazy — call conn.connect() on first use)."""
         key = self._to_key(server_name)
-        yml_path = self._resolve_config_path(key)
-        data = self._load_config(key)
-        self._validate_server_config(data)
-        cfg = dict(data["server"])
-        jump_host = self._resolve_jump_host(key, cfg)
-        if jump_host:
-            cfg["jump_host"] = jump_host
-        aliases = data.get("aliases", [])
-        with self._lock:
-            if key in self._pool:
-                conn = self._pool[key]
-                return conn
-            conn = SSHConnection(
-                cfg,
-                aliases,
-                yml_path,
-                connection_pool=self,
-            )
-            self._pool[key] = conn
+        retired = []
+        try:
+            with self._config_lock:
+                data = self._load_config(key)
+                revision = self._revision
+                self._validate_server_config(data)
+                cfg = dict(data["server"])
+                jump_host = self._resolve_jump_host(key, cfg)
+                if jump_host:
+                    cfg["jump_host"] = jump_host
+                with self._lock:
+                    if self._pool_revision != revision:
+                        retired = list(self._pool.values())
+                        self._pool.clear()
+                        self._pool_revision = revision
+                    conn = self._pool.get(key)
+                    if conn is None:
+                        if len(self._pool) >= self.max_connections:
+                            candidates = [(value.idle_for(time.monotonic()), name)
+                                          for name, value in self._pool.items()]
+                            idle, victim = max(candidates, default=(0, None))
+                            if idle <= 0:
+                                raise RuntimeError("SSH connection limit reached; retry after active requests finish.")
+                            retired.append(self._pool.pop(victim))
+                        conn = SSHConnection(
+                            cfg, data.get("aliases", []),
+                            str(SERVERS_DIR / f"{key}.yml"), connection_pool=self,
+                        )
+                        self._pool[key] = conn
+                    self._ensure_reaper()
             return conn
+        finally:
+            for old in retired:
+                old.close()
 
     def get_server_config(self, server_name: str) -> dict:
         """Return editable server fields without exposing stored secrets."""
@@ -1031,8 +1336,9 @@ class ConnectionPool:
         if not config_path.exists():
             raise FileNotFoundError(f"Server config not found: {config_path}")
 
-        raw = load_yaml(str(config_path))
-        resolved = self._load_config(key)
+        with self._config_lock:
+            resolved = self._load_config(key)
+            raw = copy.deepcopy(self._raw_configs[key])
         server = resolved.get("server", {})
         if not isinstance(server, dict):
             server = {}
@@ -1069,6 +1375,7 @@ class ConnectionPool:
             "inherited": bool(raw.get("extends")),
         }
 
+    @_configuration_write
     def create_server(self, server_name: str, config: dict) -> dict:
         """Create a server YAML file without overwriting an existing config."""
         key, config_path = self._config_target(server_name)
@@ -1079,6 +1386,7 @@ class ConnectionPool:
         self._discard(key)
         return {"name": key, "path": str(config_path), "created": True}
 
+    @_configuration_write
     def update_server(self, server_name: str, config: dict, replace: bool = False) -> dict:
         """Recursively merge a server config patch, or replace the whole config."""
         key, config_path = self._config_target(server_name)
@@ -1096,6 +1404,7 @@ class ConnectionPool:
             "replace": replace,
         }
 
+    @_configuration_write
     def copy_server(self, source_server: str, target_server: str) -> dict:
         """Copy a server YAML file to a new name without overwriting."""
         source_key, source_path = self._config_target(source_server)
@@ -1115,6 +1424,7 @@ class ConnectionPool:
             "copied": True,
         }
 
+    @_configuration_write
     def delete_server(self, server_name: str) -> dict:
         """Delete one server YAML file."""
         key, config_path = self._config_target(server_name)
@@ -1253,18 +1563,27 @@ class ConnectionPool:
                 temp_path.unlink()
 
     def _discard(self, key: str):
+        # Inherited settings and shared jump hosts can affect any cached connection.
+        with self._config_lock:
+            self._config_checked_until = 0.0
+            self._config_signature = None
         with self._lock:
-            conn = self._pool.pop(key, None)
-        if conn is not None:
+            connections = list(self._pool.values())
+            self._pool.clear()
+            self._pool_revision = None
+        for conn in connections:
             conn.close()
 
     def close_all(self):
         """Close and remove all cached connections."""
+        self._reaper_stop.set()
         with self._lock:
             connections = list(self._pool.values())
             self._pool.clear()
         for conn in connections:
             conn.close()
+        if self._reaper_thread is not None and self._reaper_thread is not threading.current_thread():
+            self._reaper_thread.join(timeout=2)
 
     def _resolve_config_path(self, name: str) -> str:
         _, config_path = self._config_target(name)
@@ -1273,55 +1592,27 @@ class ConnectionPool:
         return str(config_path)
 
     def _load_config(self, name: str) -> dict:
-        config_path = SERVERS_DIR / f"{name}.yml"
-        if not config_path.exists():
-            raise FileNotFoundError(f"Server config not found: {config_path}")
-        cfg = load_yaml(str(config_path))
-
-        # Handle 'extends' inheritance
-        extends = cfg.pop("extends", [])
-        if extends:
-            base_cfg = dict(cfg)
-            base_aliases = base_cfg.get("aliases", [])
-            for ext_file in extends:
-                ext_path = config_path.parent / ext_file
-                if not ext_path.exists():
-                    print(f"Warning: extends file not found: {ext_path}", file=sys.stderr)
-                    continue
-                ext_cfg = load_yaml(str(ext_path))
-                # Merge server fields: base + local overrides
-                ext_server = ext_cfg.get("server", {})
-                if ext_server:
-                    merged_server = {**ext_server, **base_cfg.get("server", {})}
-                    base_cfg["server"] = merged_server
-                # Merge aliases: local takes priority
-                ext_aliases = ext_cfg.get("aliases", [])
-                if ext_aliases:
-                    existing_names = {a["name"] for a in base_cfg.get("aliases", [])}
-                    base_cfg["aliases"] = [
-                        a for a in ext_aliases if a.get("name") not in existing_names
-                    ] + base_cfg.get("aliases", [])
-                # Merge security fields
-                for key in ["whitelist", "blacklist", "command_template",
-                            "allowed_local_paths", "allowed_remote_paths", "scripts_dir"]:
-                    if key not in base_cfg and key in ext_cfg:
-                        base_cfg[key] = ext_cfg[key]
-                # Merge proxy config
-                if "proxy" in ext_cfg and "proxy" not in base_cfg:
-                    base_cfg["proxy"] = ext_cfg["proxy"]
-            cfg = base_cfg
-
-        return cfg
+        with self._config_lock:
+            self._refresh_config_cache()
+            if name in self._config_errors:
+                raise self._config_errors[name]
+            if name not in self._configs:
+                raise FileNotFoundError(f"Server config not found: {SERVERS_DIR / (name + '.yml')}")
+            return copy.deepcopy(self._configs[name])
 
     def list_servers(self) -> list:
         """List all configured servers"""
-        if not SERVERS_DIR.exists():
-            return []
+        with self._config_lock:
+            self._refresh_config_cache()
+            names = sorted(set(self._configs) | set(self._config_errors))
+            snapshot = copy.deepcopy(self._configs)
+            errors = {name: str(error) for name, error in self._config_errors.items()}
         servers = []
-        for f in sorted(SERVERS_DIR.glob("*.yml")):
+        for name in names:
             try:
-                name = f.stem
-                cfg = self._load_config(name)
+                if name in errors:
+                    raise ValueError(errors[name])
+                cfg = snapshot[name]
                 srv = cfg["server"]
                 info = {
                     "name": name,
@@ -1341,7 +1632,7 @@ class ConnectionPool:
                     info["aliases"] = len(aliases)
                 servers.append(info)
             except Exception as e:
-                servers.append({"name": f.stem, "error": str(e)})
+                servers.append({"name": name, "error": str(e)})
         servers.sort(key=lambda s: (s.get("group", ""), s.get("name", "")))
         for i, srv in enumerate(servers, start=1):
             srv["index"] = i

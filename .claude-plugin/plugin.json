@@ -1,7 +1,7 @@
 {
   "name": "ssh-alias-mcp",
   "description": "Let AI agents manage Linux servers via SSH — run commands, deploy code, tail logs, restart services, and upload scripts. One YAML config, one connection pool, works for both AI and CLI.",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": {
     "name": "jdassd",
     "url": "https://github.com/jdassd"

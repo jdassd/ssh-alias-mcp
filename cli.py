@@ -111,6 +111,10 @@ def _write_result(result: dict) -> int:
         sys.stdout.write(result["stdout"])
     if result.get("stderr"):
         sys.stderr.write(result["stderr"])
+    if result.get("output_truncated"):
+        sys.stderr.write("\nReturned output is incomplete (output limit or command timeout).\n")
+    if result.get("timed_out"):
+        sys.stderr.write("\nSSH command timed out.\n")
     return result.get("code", 1)
 
 
@@ -257,4 +261,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        pool.close_all()
