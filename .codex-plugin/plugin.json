@@ -1,7 +1,7 @@
 {
   "name": "ssh-alias-mcp",
   "description": "Configure and connect to multiple SSH servers, including jump-host routes.",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "author": {
     "name": "jdassd",
     "url": "https://github.com/jdassd"

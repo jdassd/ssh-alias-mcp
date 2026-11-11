@@ -82,6 +82,8 @@ Missing or null `server.proxy` inherits the global setting. If neither setting e
 
 HTTP settings support `host`, `port`, `username`, `password`, `auth_file`, and `timeout`. Credentials are read at connection time from the JSON `auth_file` containing `username` and `password`; the default is `~/.config/openvpn-http-proxy/proxy-auth.json`. Explicit username/password take priority. Set `auth_file: null` for an unauthenticated custom proxy. `VPN_HTTP_PROXY_URL=http://host:port` and `VPN_HTTP_PROXY_AUTH_FILE=/path/to/proxy-auth.json` override shared defaults; per-server/global explicit fields still take precedence. Passwords are not returned by the configuration UI or written to proxy error logs.
 
+The historical installer default `VPN_HTTP_PROXY_URL=http://192.168.100.40:18080` is recognized after URL validation and mapped to the current platform's loopback default. This compatibility rule applies only to the shared default layer: custom URLs and explicit per-server/global hosts are not rewritten. To intentionally keep that exact old endpoint in the environment, set `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1`.
+
 `auto_reconnect` enables background reconnects after a failed request.
 `reconnect_interval` is used while there have been fewer than five consecutive
 connection failures. After the fifth failure, retries slow to once every 60

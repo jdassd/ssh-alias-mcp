@@ -30,6 +30,10 @@ You can also run `python cli.py open-config` directly. Keep that process running
 
 The shared HTTP proxy defaults to `127.0.0.1:18080` on Windows and `127.0.0.1:18081` on Linux/Cage. Store its credentials outside the repository in `~/.config/openvpn-http-proxy/proxy-auth.json` (`username` and `password`), or set `VPN_HTTP_PROXY_AUTH_FILE`. `VPN_HTTP_PROXY_URL` overrides the default endpoint. Explicit existing proxy settings remain authoritative, including `enabled: false`; see the [proxy configuration reference](REFERENCE.md#global-configuration-configyaml). A failed proxy connection never falls back to direct TCP.
 
+For old installations whose `VPN_HTTP_PROXY_URL` still contains the former default `http://192.168.100.40:18080`, the shared default resolver automatically uses the stable loopback endpoint for the current platform. Other URLs and explicit per-server/global proxy hosts are preserved. Set `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1` if that exact old address is intentionally a remote proxy.
+
+If a previous backup installer wrote that default into its managed global `config.yaml`, rerun the updated backup installer to migrate its installed default. The runtime resolver does not rewrite explicit configuration hosts.
+
 ## Performance and resource limits
 
 - Parsed YAML, inherited settings, and dynamic alias indexes are cached by configuration revision. Programmatic saves invalidate the cache immediately; external edits are detected by file signatures, checked at most every 250ms.

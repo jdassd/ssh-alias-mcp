@@ -11,7 +11,8 @@ from urllib.parse import urlsplit
 
 
 def default_http_proxy():
-    host, port = ("127.0.0.1", 18080) if os.name == "nt" else ("127.0.0.1", 18081)
+    stable_endpoint = ("127.0.0.1", 18080) if os.name == "nt" else ("127.0.0.1", 18081)
+    host, port = stable_endpoint
     endpoint = os.environ.get("VPN_HTTP_PROXY_URL", "").strip()
     if endpoint:
         parsed = urlsplit(endpoint)
@@ -20,6 +21,11 @@ def default_http_proxy():
                 or parsed.query or parsed.fragment):
             raise ValueError("VPN_HTTP_PROXY_URL must be http://host:port without credentials")
         host, port = parsed.hostname, parsed.port if parsed.port is not None else 80
+        # Validate before recognizing a historical installer-generated default.
+        validate_proxy({"host": host, "port": port})
+        if ((host, port) == ("192.168.100.40", 18080)
+                and os.environ.get("VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT", "").strip() != "1"):
+            host, port = stable_endpoint
     result = {
         "enabled": True,
         "type": "http",

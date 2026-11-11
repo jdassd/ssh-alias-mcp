@@ -85,6 +85,8 @@ HTTP CONNECT 承载 SSH TCP 连接，命令、别名、SFTP 上传下载及跳�
 
 HTTP 配置支持 `host`、`port`、`username`、`password`、`auth_file`、`timeout`。默认在连接时从 `~/.config/openvpn-http-proxy/proxy-auth.json` 读取 username/password；明确配置的用户名密码优先。自定义无认证代理可设 `auth_file: null`。环境变量 `VPN_HTTP_PROXY_URL=http://host:port`、`VPN_HTTP_PROXY_AUTH_FILE=/path/to/proxy-auth.json` 覆盖共享默认值，单服务器或全局中显式字段优先。配置界面不会返回已保存的代理密码，错误日志也不记录认证字段。
 
+旧安装器生成的 `VPN_HTTP_PROXY_URL=http://192.168.100.40:18080` 会先经过 URL 校验，再映射到当前平台的回环默认地址。此兼容规则仅作用于共享默认层，其他 URL 和单服务器、全局中显式 host 均不改写。需要在环境变量中有意保留该旧端点时，设置 `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1`。
+
 `auto_reconnect` 用于控制连接请求失败后的后台重连。连续连接失败少于 5 次时，
 按 `reconnect_interval` 指定的秒数重试；第 5 次失败后降为每 60 秒重试一次。
 即使处于冷却期，新的 CLI 或 MCP 请求也会立即触发一次连接尝试。
