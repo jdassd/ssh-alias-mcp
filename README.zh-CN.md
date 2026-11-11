@@ -28,9 +28,9 @@ python cli.py my-server alias deploy
 
 也可直接运行 `python cli.py open-config`。使用网页期间保持该进程运行，结束时按 Ctrl+C 关闭；通过 MCP 打开时，网页服务由 MCP 进程管理，空闲回收后再次打开即可。
 
-共享 HTTP 代理默认使用 Windows 的 `127.0.0.1:18080` 或 Linux/Cage 的 `127.0.0.1:18081`。凭据保存在仓库外的 `~/.config/openvpn-http-proxy/proxy-auth.json`（username/password），也可通过 `VPN_HTTP_PROXY_AUTH_FILE` 指定；`VPN_HTTP_PROXY_URL` 覆盖默认地址。已有明确代理配置仍优先，包括 `enabled: false` 直连；详细说明见[全局配置参考](REFERENCE.zh-CN.md#全局配置configyaml)。代理失败不会自动回退到直连。
+共享 HTTP 代理默认使用 Windows 的 `127.0.0.2:18080` 或 Linux/Cage 的 `127.0.0.1:18081`。凭据保存在仓库外的 `~/.config/openvpn-http-proxy/proxy-auth.json`（username/password），也可通过 `VPN_HTTP_PROXY_AUTH_FILE` 指定；`VPN_HTTP_PROXY_URL` 覆盖默认地址。已有明确代理配置仍优先，包括 `enabled: false` 直连；详细说明见[全局配置参考](REFERENCE.zh-CN.md#全局配置configyaml)。代理失败不会自动回退到直连。
 
-旧安装如果仍在 `VPN_HTTP_PROXY_URL` 中保存原默认地址 `http://192.168.100.40:18080`，共享默认解析会自动使用当前平台稳定的回环地址。其他地址和单服务器、全局中明确填写的代理主机保持原值。若该旧地址确实指向你要使用的远端代理，可设置 `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1` 保留它。
+旧安装如果仍在 `VPN_HTTP_PROXY_URL` 中保存原默认地址 `http://192.168.100.40:18080` 或 `http://127.0.0.1:18080`，共享默认解析会自动使用当前平台的稳定入口。Windows 使用专用回环地址 `127.0.0.2`，避免与 Cage 在 `127.0.0.1:18080` 的自动端口转发冲突。其他地址和单服务器、全局中明确填写的代理主机保持原值。若有意使用某个历史地址，可设置 `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1` 保留它。
 
 如果旧备份安装器把原默认地址写进了其管理的全局 `config.yaml`，重新运行新版备份安装器可迁移该安装默认值；运行时解析不会改写显式配置的主机地址。
 

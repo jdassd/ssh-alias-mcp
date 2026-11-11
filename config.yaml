@@ -7,7 +7,7 @@ proxy:
   # HTTP CONNECT; set enabled:false for an intentional direct connection.
   enabled: true
   type: http
-  # Default endpoint: Windows 127.0.0.1:18080; Linux 127.0.0.1:18081.
+  # Default endpoint: Windows 127.0.0.2:18080; Linux 127.0.0.1:18081.
   # Credentials: ~/.config/openvpn-http-proxy/proxy-auth.json.
   # Connection timeout when using proxy (seconds)
   timeout: 30
