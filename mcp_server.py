@@ -26,7 +26,7 @@ from ssh_client import pool
 SERVER_INFO = {
     "name": "ssh-alias-mcp",
     "title": "SSH Alias MCP",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "description": "Run configured SSH commands, scripts, aliases, uploads, and downloads.",
 }
 SUPPORTED_PROTOCOL_VERSIONS = [
@@ -112,8 +112,9 @@ SERVER_CONFIG_OUTPUT_SCHEMA = {
                 "password": {"type": "boolean"},
                 "key_password": {"type": "boolean"},
                 "sudo_password": {"type": "boolean"},
+                "proxy_password": {"type": "boolean"},
             },
-            "required": ["password", "key_password", "sudo_password"],
+            "required": ["password", "key_password", "sudo_password", "proxy_password"],
             "additionalProperties": False,
         },
         "inherited": {"type": "boolean"},

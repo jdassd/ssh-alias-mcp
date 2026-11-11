@@ -9,6 +9,7 @@ AI 驱动的服务器运维工具。YAML 配置服务器，执行命令、部署
 - **浏览器配置界面** — 在本机网页中添加、修改、删除多台服务器
 - **一套配置，三种 Shell** — `bash`、`cmd`、`powershell` 通过命令模板自动适配
 - **SSH 跳板机** — 通过命名的堡垒机配置和 `direct-tcpip` 访问内网目标机
+- **HTTP CONNECT 代理** — SSH 与 SFTP 共用带认证的 HTTP 隧道；旧数据缺少代理配置时继承 OpenVPN 代理默认值，可明确直连或继续使用原有 SOCKS5
 - **Alias 系统** — 一行 YAML = 一个 AI 技能，自动暴露为 MCP 工具
 - **MCP + CLI** — 同一套配置、同一个连接池，AI 和人工共用
 
@@ -26,6 +27,8 @@ python cli.py my-server alias deploy
 在对话中说“打开 SSH 服务器配置”，即可在默认浏览器打开配置页。网页仅监听 `127.0.0.1`，继续使用已有配置文件；已保存的密码不会返回给 Agent，也不会在表单中回显。自动打开失败时，可使用 `ssh_open_config` 返回的 `url` 手动打开。
 
 也可直接运行 `python cli.py open-config`。使用网页期间保持该进程运行，结束时按 Ctrl+C 关闭；通过 MCP 打开时，网页服务由 MCP 进程管理，空闲回收后再次打开即可。
+
+共享 HTTP 代理默认使用 Windows 的 `192.168.100.40:18080` 或 Linux/Cage 的 `127.0.0.1:18081`。凭据保存在仓库外的 `~/.config/openvpn-http-proxy/proxy-auth.json`（username/password），也可通过 `VPN_HTTP_PROXY_AUTH_FILE` 指定；`VPN_HTTP_PROXY_URL` 覆盖默认地址。已有明确代理配置仍优先，包括 `enabled: false` 直连；详细说明见[全局配置参考](REFERENCE.zh-CN.md#全局配置configyaml)。代理失败不会自动回退到直连。
 
 ## 性能与资源上限
 

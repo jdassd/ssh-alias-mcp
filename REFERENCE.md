@@ -17,7 +17,7 @@
 │  ssh_client.py  (Shared core)                        │
 │  ├── ConnectionPool (connection reuse, 60s keepalive)│
 │  ├── SSH jump host forwarding (direct-tcpip)         │
-│  ├── SOCKS5 proxy + direct auto-fallback             │
+│  ├── HTTP CONNECT / SOCKS5 proxy, no direct fallback             │
 │  └── SFTP script upload & download                   │
 └──────────────┬───────────────────────────────────────┘
                │ SSH
@@ -59,9 +59,10 @@
 servers_dir: "../servers"
 
 proxy:
-  enabled: false              # Globally enable SOCKS5 proxy
-  host: "127.0.0.1"           # Proxy address
-  port: 1080                  # Proxy port
+  enabled: true               # Explicit false selects direct TCP
+  type: http                  # HTTP CONNECT; legacy socks5 is also supported
+  # host/port omitted: Windows 192.168.100.40:18080; Linux 127.0.0.1:18081
+  # auth_file: ~/.config/openvpn-http-proxy/proxy-auth.json
   timeout: 30                 # Proxy connection timeout (seconds)
 
 server:
@@ -75,7 +76,11 @@ security:
   command_template: ""        # Command template to wrap all commands
 ```
 
-Proxy is tried first, auto-fallback to direct connection on failure.
+HTTP CONNECT carries the SSH TCP connection, including commands, aliases, SFTP uploads/downloads, and the first hop of a jump-host chain. Proxy failures are reported and never fall back to direct TCP. Configure a target with `server.proxy: {enabled: false}` for an intentional direct connection.
+
+Missing or null `server.proxy` inherits the global setting. If neither setting exists, the authenticated HTTP proxy above is the default; old data does not need per-server migration. Existing explicit `enabled: false` stays direct. Existing endpoint-only proxy objects without `type` retain their SOCKS5 meaning. A target using `jump_host` inherits the jump host's transport; configure any proxy on that jump host.
+
+HTTP settings support `host`, `port`, `username`, `password`, `auth_file`, and `timeout`. Credentials are read at connection time from the JSON `auth_file` containing `username` and `password`; the default is `~/.config/openvpn-http-proxy/proxy-auth.json`. Explicit username/password take priority. Set `auth_file: null` for an unauthenticated custom proxy. `VPN_HTTP_PROXY_URL=http://host:port` and `VPN_HTTP_PROXY_AUTH_FILE=/path/to/proxy-auth.json` override shared defaults; per-server/global explicit fields still take precedence. Passwords are not returned by the configuration UI or written to proxy error logs.
 
 `auto_reconnect` enables background reconnects after a failed request.
 `reconnect_interval` is used while there have been fewer than five consecutive
@@ -418,7 +423,7 @@ free -h
 | | Password auth | Password login | `server.password` |
 | | Key auth | SSH key login (optional passphrase) | `server.key`, `server.key_password` |
 | | SSH jump host | Reach a target through one named bastion | `server.jump_host` |
-| | SOCKS5 proxy | Proxy first, auto-fallback to direct | `config.yaml` proxy / `server.proxy` |
+| | HTTP CONNECT / SOCKS5 proxy | Explicit proxy, no direct fallback | `config.yaml` proxy / `server.proxy` |
 | | Connection pool | Auto-reuse, 60s keepalive | Global `pool.get(name)` |
 | **Command Execution** | `run()` | Execute command, optional sudo, real-time streaming | `ssh_run` / CLI `run -s` |
 | | `run_alias()` | Execute predefined alias (streams output) | `ssh_alias.server.name` / CLI `alias` |

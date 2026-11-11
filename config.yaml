@@ -4,12 +4,11 @@
 servers_dir: 'D:/agents/servers'
 
 proxy:
-  # Enable or disable SOCKS5 proxy globally (true/false)
-  enabled: false
-  # SOCKS5 proxy host address
-  host: "127.0.0.1"
-  # SOCKS5 proxy port
-  port: 1080
+  # HTTP CONNECT; set enabled:false for an intentional direct connection.
+  enabled: true
+  type: http
+  # Default endpoint: Windows 192.168.100.40:18080; Linux 127.0.0.1:18081.
+  # Credentials: ~/.config/openvpn-http-proxy/proxy-auth.json.
   # Connection timeout when using proxy (seconds)
   timeout: 30
 

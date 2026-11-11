@@ -9,6 +9,7 @@ AI-driven server operations tool. Configure servers in YAML, execute commands, d
 - **Browser configuration UI** — Open local settings to add, edit, and delete multiple servers
 - **One config, three shells** — `bash`, `cmd`, `powershell` auto-adapted via command templates
 - **SSH jump hosts** — Reach private targets through a named bastion config using `direct-tcpip`
+- **HTTP CONNECT proxy** — Authenticated HTTP tunnels for SSH and SFTP; old missing proxy settings inherit the OpenVPN proxy default, with explicit direct/SOCKS5 overrides
 - **Alias system** — One YAML line = one AI skill, auto-exposed as MCP tools
 - **MCP + CLI** — Same config, same connection pool, shared by AI and humans
 
@@ -26,6 +27,8 @@ python cli.py my-server alias deploy
 Ask the agent to “open SSH server settings” to open the configuration page in your default browser. The page runs on `127.0.0.1` and uses the same saved configuration files; stored passwords are never returned to the agent or displayed in the form. If the browser cannot be launched automatically, open the `url` returned by `ssh_open_config`.
 
 You can also run `python cli.py open-config` directly. Keep that process running while using the page, then press Ctrl+C to stop it. With MCP, the page is managed by the MCP process and can be reopened after idle expiry.
+
+The shared HTTP proxy defaults to `192.168.100.40:18080` on Windows and `127.0.0.1:18081` on Linux/Cage. Store its credentials outside the repository in `~/.config/openvpn-http-proxy/proxy-auth.json` (`username` and `password`), or set `VPN_HTTP_PROXY_AUTH_FILE`. `VPN_HTTP_PROXY_URL` overrides the default endpoint. Explicit existing proxy settings remain authoritative, including `enabled: false`; see the [proxy configuration reference](REFERENCE.md#global-configuration-configyaml). A failed proxy connection never falls back to direct TCP.
 
 ## Performance and resource limits
 

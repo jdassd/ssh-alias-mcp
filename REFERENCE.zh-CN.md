@@ -17,7 +17,7 @@
 │  ssh_client.py  (共享核心)                            │
 │  ├── 连接池 (连接复用，60s 保活)                       │
 │  ├── SSH 跳板机转发 (direct-tcpip)                    │
-│  ├── SOCKS5 代理 + 直连自动回退                        │
+│  ├── HTTP CONNECT / SOCKS5 代理，不回退直连                        │
 │  └── SFTP 脚本上传与下载                              │
 └──────────────┬───────────────────────────────────────┘
                │ SSH
@@ -62,9 +62,10 @@
 servers_dir: "../servers"
 
 proxy:
-  enabled: false              # 全局启用 SOCKS5 代理
-  host: "127.0.0.1"           # 代理地址
-  port: 1080                  # 代理端口
+  enabled: true               # 明确设为 false 时直连
+  type: http                  # HTTP CONNECT；也兼容原有 socks5
+  # 省略 host/port：Windows 192.168.100.40:18080；Linux 127.0.0.1:18081
+  # auth_file: ~/.config/openvpn-http-proxy/proxy-auth.json
   timeout: 30                 # 代理连接超时（秒）
 
 server:
@@ -78,7 +79,11 @@ security:
   command_template: ""        # 包装所有命令的命令模板
 ```
 
-代理优先尝试，失败后自动回退到直连。
+HTTP CONNECT 承载 SSH TCP 连接，命令、别名、SFTP 上传下载及跳板链的首跳均使用同一代理连接层。代理失败会明确报错，不会静默回退直连。需要直连的服务器可配置 `server.proxy: {enabled: false}`。
+
+`server.proxy` 缺失或为 null 时继承全局；全局也没有配置时默认使用上述带认证的 HTTP 代理，旧服务器数据不必逐条迁移。已有明确 `enabled: false` 的配置仍然直连；已有未指定 `type`、仅含 host/port 的代理对象保持 SOCKS5 语义。使用 `jump_host` 的目标通过跳板连接，代理应配置在跳板机上。
+
+HTTP 配置支持 `host`、`port`、`username`、`password`、`auth_file`、`timeout`。默认在连接时从 `~/.config/openvpn-http-proxy/proxy-auth.json` 读取 username/password；明确配置的用户名密码优先。自定义无认证代理可设 `auth_file: null`。环境变量 `VPN_HTTP_PROXY_URL=http://host:port`、`VPN_HTTP_PROXY_AUTH_FILE=/path/to/proxy-auth.json` 覆盖共享默认值，单服务器或全局中显式字段优先。配置界面不会返回已保存的代理密码，错误日志也不记录认证字段。
 
 `auto_reconnect` 用于控制连接请求失败后的后台重连。连续连接失败少于 5 次时，
 按 `reconnect_interval` 指定的秒数重试；第 5 次失败后降为每 60 秒重试一次。
@@ -418,7 +423,7 @@ free -h
 | | 密码认证 | 密码登录 | `server.password` |
 | | 密钥认证 | SSH 密钥登录（可选密码） | `server.key`, `server.key_password` |
 | | SSH 跳板机 | 通过一台命名的堡垒机访问目标机 | `server.jump_host` |
-| | SOCKS5 代理 | 代理优先，失败自动回退直连 | `config.yaml` proxy / `server.proxy` |
+| | HTTP CONNECT / SOCKS5 代理 | 使用指定代理，失败不回退直连 | `config.yaml` proxy / `server.proxy` |
 | | 连接池 | 自动复用，60s 保活 | 全局 `pool.get(name)` |
 | **命令执行** | `run()` | 执行命令，可选 sudo，实时流式输出 | `ssh_run` / CLI `run -s` |
 | | `run_alias()` | 执行预定义别名（流式输出） | `ssh_alias.server.name` / CLI `alias` |

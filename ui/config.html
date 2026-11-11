@@ -1595,6 +1595,25 @@
                 </div>
                 <p class="field-note" id="jumpHostNote"></p>
               </div>
+              <div class="field wide">
+                <label for="proxyMode">连接代理</label>
+                <div class="select-wrap">
+                  <select id="proxyMode" name="proxyMode">
+                    <option value="inherit">继承全局代理（未配置时默认 OpenVPN HTTP 代理）</option>
+                    <option value="disabled">直连（明确关闭代理）</option>
+                    <option value="http">自定义 HTTP CONNECT 代理</option>
+                    <option value="socks5">自定义 SOCKS5 代理</option>
+                  </select>
+                </div>
+                <p class="field-note">跳板连接的代理在跳板机上设置；代理失败会报错，不会自动改为直连。</p>
+              </div>
+              <div class="grid wide" id="proxyFields" hidden>
+                <div class="field"><label for="proxyHost">代理地址</label><input class="mono-input" id="proxyHost" autocomplete="off" placeholder="IP 或域名"><p class="field-note" id="proxyHostError"></p></div>
+                <div class="field"><label for="proxyPort">代理端口</label><input class="mono-input" id="proxyPort" type="number" min="1" max="65535"><p class="field-note" id="proxyPortError"></p></div>
+                <div class="field"><label for="proxyUsername">代理用户名</label><input id="proxyUsername" autocomplete="off" placeholder="使用凭据文件时可留空"></div>
+                <div class="field"><label for="proxyPassword">代理密码</label><input id="proxyPassword" type="password" autocomplete="new-password" placeholder="已保存的密码不会显示"><p class="field-note" id="proxyPasswordError"></p></div>
+                <div class="field wide"><label for="proxyAuthFile">代理凭据文件</label><input class="mono-input" id="proxyAuthFile" autocomplete="off" placeholder="~/.config/openvpn-http-proxy/proxy-auth.json"><p class="field-note">JSON 中保存 username 和 password。HTTP 默认使用共享凭据文件；留空表示不使用文件。</p></div>
+              </div>
             </div>
           </section>
 
@@ -1909,6 +1928,13 @@
         user: document.getElementById("user"),
         jumpHost: document.getElementById("jumpHost"),
         jumpHostNote: document.getElementById("jumpHostNote"),
+        proxyMode: document.getElementById("proxyMode"),
+        proxyFields: document.getElementById("proxyFields"),
+        proxyHost: document.getElementById("proxyHost"),
+        proxyPort: document.getElementById("proxyPort"),
+        proxyUsername: document.getElementById("proxyUsername"),
+        proxyPassword: document.getElementById("proxyPassword"),
+        proxyAuthFile: document.getElementById("proxyAuthFile"),
         passwordFields: document.getElementById("passwordFields"),
         keyFields: document.getElementById("keyFields"),
         agentFields: document.getElementById("agentFields"),
@@ -2340,6 +2366,17 @@
         setValue(elements.reconnectInterval, server.reconnect_interval, 5);
         setValue(elements.sudoPassword, "");
         setValue(elements.description, server.desc);
+        var proxy = server.proxy;
+        elements.proxyMode.value = proxy === false || proxy && proxy.enabled === false ? "disabled" :
+          proxy && typeof proxy === "object" && Object.keys(proxy).length ? (proxy.type || (proxy.host || proxy.port ? "socks5" : "http")) : "inherit";
+        setValue(elements.proxyHost, proxy && proxy.host);
+        setValue(elements.proxyPort, proxy && proxy.port, elements.proxyMode.value === "socks5" ? 1080 : 18081);
+        setValue(elements.proxyUsername, proxy && proxy.username);
+        setValue(elements.proxyPassword, "");
+        setValue(elements.proxyAuthFile, proxy && Object.prototype.hasOwnProperty.call(proxy, "auth_file") ? proxy.auth_file :
+          elements.proxyMode.value === "http" ? "~/.config/openvpn-http-proxy/proxy-auth.json" : "");
+        elements.proxyPassword.placeholder = secrets.proxy_password ? "已保存，留空不修改" : "代理密码";
+        elements.proxyFields.hidden = !["http", "socks5"].includes(elements.proxyMode.value);
 
         elements.passwordSaved.hidden = !secrets.password;
         elements.keyPasswordSaved.hidden = !secrets.key_password;
@@ -2496,6 +2533,22 @@
           valid = false;
           elements.moreSettings.open = true;
         }
+        if (["http", "socks5"].includes(elements.proxyMode.value)) {
+          if (!elements.proxyHost.value.trim() || elements.jumpHost.value) {
+            setFieldError("proxyHost", elements.jumpHost.value ? "请在跳板机配置代理，此目标选择继承或直连。" : "请填写代理地址。");
+            valid = false;
+          }
+          var proxyPort = Number(elements.proxyPort.value);
+          if (!Number.isInteger(proxyPort) || proxyPort < 1 || proxyPort > 65535) {
+            setFieldError("proxyPort", "端口应为 1 到 65535。");
+            valid = false;
+          }
+          if (elements.proxyUsername.value.trim() && !elements.proxyPassword.value &&
+              !(state.detail && state.detail.secrets && state.detail.secrets.proxy_password)) {
+            setFieldError("proxyPassword", "填写代理用户名时，请同时填写密码；或留空用户名，改用凭据文件。");
+            valid = false;
+          }
+        }
 
         var secrets = state.detail && state.detail.secrets || {};
         if (currentAuthMode() === "password") {
@@ -2538,6 +2591,20 @@
 
         if (elements.scriptsDir.value.trim()) {
           server.scripts_dir = elements.scriptsDir.value.trim();
+        }
+        if (elements.proxyMode.value === "disabled") {
+          server.proxy = { enabled: false };
+        } else if (["http", "socks5"].includes(elements.proxyMode.value)) {
+          server.proxy = {
+            enabled: true, type: elements.proxyMode.value,
+            host: elements.proxyHost.value.trim(), port: Number(elements.proxyPort.value),
+            username: elements.proxyUsername.value.trim() || null,
+            auth_file: elements.proxyAuthFile.value.trim() || null
+          };
+          if (elements.proxyPassword.value) server.proxy.password = elements.proxyPassword.value;
+          else if (!server.proxy.username) server.proxy.password = null;
+        } else {
+          server.proxy = null;
         }
 
         if (currentAuthMode() === "password") {
@@ -2667,6 +2734,14 @@
 
       elements.newButton.addEventListener("click", startNew);
       elements.form.addEventListener("submit", saveServer);
+      elements.proxyMode.addEventListener("change", function () {
+        state.dirty = true;
+        updateDirtyBadge();
+        elements.proxyFields.hidden = !["http", "socks5"].includes(elements.proxyMode.value);
+        if (elements.proxyMode.value === "http" && !elements.proxyAuthFile.value) {
+          elements.proxyAuthFile.value = "~/.config/openvpn-http-proxy/proxy-auth.json";
+        }
+      });
       elements.form.addEventListener("input", function (event) {
         if (event.target === elements.serverSearch) return;
         state.dirty = true;

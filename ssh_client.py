@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SSH Client - Core SSH connection module
 
-Supports direct connection, SSH jump hosts, SOCKS5 proxy with auto-fallback,
+Supports direct connection, SSH jump hosts, HTTP CONNECT and SOCKS5 proxies,
 connection pooling, and script upload/run.
 
 Usage:
@@ -36,6 +36,7 @@ from functools import wraps
 
 import paramiko
 import yaml
+from proxy_transport import resolve_proxy, open_proxy_socket, validate_proxy
 
 # Force UTF-8 output on Windows
 if sys.stdout.encoding != "utf-8":
@@ -91,7 +92,7 @@ def load_yaml(path: str) -> dict:
 def load_global_config() -> dict:
     """Load global configuration (proxy, timeout, etc.)"""
     if not CONFIG_PATH.exists():
-        return {"proxy": {"enabled": False}, "server": {"timeout": 30}}
+        return {"server": {"timeout": 30}}
     return load_yaml(str(CONFIG_PATH))
 
 
@@ -255,15 +256,9 @@ class SSHConnection:
             "remote": [str(p) for p in cfg.get("allowed_remote_paths", [])],
         }
 
-        # Proxy config: per-server takes priority, then global fallback
-        self.proxy = cfg.get("proxy")
-        if not self.proxy:
-            proxy_cfg = global_config.get("proxy", {})
-            if proxy_cfg.get("enabled"):
-                self.proxy = {
-                    "host": proxy_cfg.get("host", "127.0.0.1"),
-                    "port": proxy_cfg.get("port", 1080)
-                }
+        # Keep only the per-server override so inherited global settings can reload.
+        # In particular, enabled:false must never be mistaken for a missing proxy.
+        self.proxy = copy.deepcopy(cfg.get("proxy"))
 
         self._client: Optional[paramiko.SSHClient] = None
         self._last_used = 0
@@ -366,35 +361,16 @@ class SSHConnection:
             self._connect_via_jump()
             return
 
-        # Dynamically reload proxy config
-        current_proxy_cfg = load_global_config().get("proxy", {})
-        if current_proxy_cfg.get("enabled"):
-            proxy = {
-                "host": current_proxy_cfg.get("host", "127.0.0.1"),
-                "port": current_proxy_cfg.get("port", 1080)
-            }
-            if self.proxy:
-                proxy = self.proxy
-        elif self.proxy:
-            proxy = self.proxy
-        else:
-            proxy = None
-
-        # Check pysocks availability
-        if proxy:
-            import socks  # noqa: F401
-
-        # Try proxy connection first
+        proxy = resolve_proxy(self.proxy, load_global_config())
         if proxy:
             try:
                 self._connect_proxy_with(proxy)
                 return
             except Exception as e:
-                error_msg = f"Proxy connection failed ({type(e).__name__}: {e}), fallback to direct..."
-                print(error_msg, file=sys.stderr)
                 self._log_proxy_error(proxy, e)
+                raise
 
-        # Direct connection (fallback after proxy failure)
+        # Direct TCP is only selected by explicit proxy disablement.
         self._connect_direct()
 
     def _record_connect_failure(self):
@@ -549,29 +525,20 @@ class SSHConnection:
             raise
 
     def _connect_proxy_with(self, proxy: dict):
-        """Connect via SOCKS5 proxy"""
-        import socks
-        sock = socks.socksocket()
-        transport = None
+        """Connect SSH through an HTTP CONNECT or legacy SOCKS5 tunnel."""
+        sock = open_proxy_socket(proxy, self.host, self.port, self.timeout)
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            sock.set_proxy(socks.SOCKS5, proxy["host"], int(proxy["port"]))
-            sock.settimeout(self.timeout)
-            sock.connect((self.host, self.port))
-
-            c = paramiko.SSHClient()
-            c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            transport = paramiko.Transport(sock)
-            kw = self._get_auth()
-            transport.connect(username=self.user, **kw)
-            transport.set_keepalive(60)
-            c._transport = transport
-            self._client = c
+            client.connect(hostname=self.host, port=self.port, username=self.user,
+                           timeout=self.timeout, banner_timeout=self.timeout,
+                           auth_timeout=self.timeout, sock=sock, **self._get_auth())
+            client.get_transport().set_keepalive(60)
+            self._client = client
             self._last_used = time.monotonic()
         except Exception:
-            if transport is not None:
-                transport.close()
-            else:
-                sock.close()
+            client.close()
+            sock.close()
             raise
 
     def _connect_direct(self):
@@ -613,12 +580,10 @@ class SSHConnection:
         """Log proxy connection errors to a log file"""
         log_path = SCRIPT_DIR / "proxy_error.log"
         try:
-            import traceback
             with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {exc}\n")
+                f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {type(exc).__name__}\n")
                 f.write(f"  Target: {self.user}@{self.host}:{self.port}\n")
-                f.write(f"  Proxy: {proxy}\n")
-                f.write(traceback.format_exc())
+                f.write(f"  Proxy: {proxy.get('type')}://{proxy.get('host')}:{proxy.get('port')}\n")
                 f.write("---\n")
         except Exception:
             pass
@@ -1302,6 +1267,8 @@ class ConnectionPool:
                 revision = self._revision
                 self._validate_server_config(data)
                 cfg = dict(data["server"])
+                if "proxy" not in cfg and "proxy" in data:
+                    cfg["proxy"] = copy.deepcopy(data["proxy"])
                 jump_host = self._resolve_jump_host(key, cfg)
                 if jump_host:
                     cfg["jump_host"] = jump_host
@@ -1364,6 +1331,12 @@ class ConnectionPool:
             for field in editable_fields
             if field in server
         }
+        raw_proxy = server.get("proxy") if "proxy" in server else resolved.get("proxy")
+        if isinstance(raw_proxy, dict):
+            safe_server["proxy"] = {key: value for key, value in raw_proxy.items()
+                                    if key in {"enabled", "type", "host", "port", "username", "auth_file", "timeout"}}
+        elif "proxy" in server or "proxy" in resolved:
+            safe_server["proxy"] = raw_proxy
         return {
             "name": key,
             "server": safe_server,
@@ -1371,6 +1344,7 @@ class ConnectionPool:
                 "password": bool(server.get("password")),
                 "key_password": bool(server.get("key_password")),
                 "sudo_password": bool(server.get("sudo_password")),
+                "proxy_password": bool(isinstance(raw_proxy, dict) and raw_proxy.get("password")),
             },
             "inherited": bool(raw.get("extends")),
         }
@@ -1487,6 +1461,8 @@ class ConnectionPool:
                         f"Server config must contain a non-empty server.{field}"
                     )
         jump_host = server.get("jump_host")
+        proxy = server.get("proxy") if "proxy" in server else config.get("proxy")
+        validate_proxy(proxy)
         if jump_host is not None:
             if not isinstance(jump_host, str) or not jump_host.strip():
                 raise ValueError("server.jump_host must be a non-empty server name")
@@ -1498,7 +1474,7 @@ class ConnectionPool:
                     "Invalid server.jump_host; use letters, numbers, dot, "
                     "underscore, or hyphen"
                 )
-            if server.get("proxy"):
+            if isinstance(proxy, dict) and proxy.get("enabled") is not False and proxy:
                 raise ValueError(
                     "server.proxy cannot be combined with server.jump_host; "
                     "configure the proxy on the jump host instead"
