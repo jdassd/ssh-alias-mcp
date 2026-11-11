@@ -61,7 +61,7 @@ servers_dir: "../servers"
 proxy:
   enabled: true               # Explicit false selects direct TCP
   type: http                  # HTTP CONNECT; legacy socks5 is also supported
-  # host/port omitted: Windows 192.168.100.40:18080; Linux 127.0.0.1:18081
+  # host/port omitted: Windows 127.0.0.1:18080; Linux 127.0.0.1:18081
   # auth_file: ~/.config/openvpn-http-proxy/proxy-auth.json
   timeout: 30                 # Proxy connection timeout (seconds)
 

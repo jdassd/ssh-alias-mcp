@@ -28,7 +28,7 @@ python cli.py my-server alias deploy
 
 也可直接运行 `python cli.py open-config`。使用网页期间保持该进程运行，结束时按 Ctrl+C 关闭；通过 MCP 打开时，网页服务由 MCP 进程管理，空闲回收后再次打开即可。
 
-共享 HTTP 代理默认使用 Windows 的 `192.168.100.40:18080` 或 Linux/Cage 的 `127.0.0.1:18081`。凭据保存在仓库外的 `~/.config/openvpn-http-proxy/proxy-auth.json`（username/password），也可通过 `VPN_HTTP_PROXY_AUTH_FILE` 指定；`VPN_HTTP_PROXY_URL` 覆盖默认地址。已有明确代理配置仍优先，包括 `enabled: false` 直连；详细说明见[全局配置参考](REFERENCE.zh-CN.md#全局配置configyaml)。代理失败不会自动回退到直连。
+共享 HTTP 代理默认使用 Windows 的 `127.0.0.1:18080` 或 Linux/Cage 的 `127.0.0.1:18081`。凭据保存在仓库外的 `~/.config/openvpn-http-proxy/proxy-auth.json`（username/password），也可通过 `VPN_HTTP_PROXY_AUTH_FILE` 指定；`VPN_HTTP_PROXY_URL` 覆盖默认地址。已有明确代理配置仍优先，包括 `enabled: false` 直连；详细说明见[全局配置参考](REFERENCE.zh-CN.md#全局配置configyaml)。代理失败不会自动回退到直连。
 
 ## 性能与资源上限
 

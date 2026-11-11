@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 
 
 def default_http_proxy():
-    host, port = ("192.168.100.40", 18080) if os.name == "nt" else ("127.0.0.1", 18081)
+    host, port = ("127.0.0.1", 18080) if os.name == "nt" else ("127.0.0.1", 18081)
     endpoint = os.environ.get("VPN_HTTP_PROXY_URL", "").strip()
     if endpoint:
         parsed = urlsplit(endpoint)

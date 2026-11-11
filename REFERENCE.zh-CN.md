@@ -64,7 +64,7 @@ servers_dir: "../servers"
 proxy:
   enabled: true               # 明确设为 false 时直连
   type: http                  # HTTP CONNECT；也兼容原有 socks5
-  # 省略 host/port：Windows 192.168.100.40:18080；Linux 127.0.0.1:18081
+  # 省略 host/port：Windows 127.0.0.1:18080；Linux 127.0.0.1:18081
   # auth_file: ~/.config/openvpn-http-proxy/proxy-auth.json
   timeout: 30                 # 代理连接超时（秒）
 

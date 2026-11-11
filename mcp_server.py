@@ -26,7 +26,7 @@ from ssh_client import pool
 SERVER_INFO = {
     "name": "ssh-alias-mcp",
     "title": "SSH Alias MCP",
-    "version": "1.5.0",
+    "version": "1.5.1",
     "description": "Run configured SSH commands, scripts, aliases, uploads, and downloads.",
 }
 SUPPORTED_PROTOCOL_VERSIONS = [

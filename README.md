@@ -28,7 +28,7 @@ Ask the agent to “open SSH server settings” to open the configuration page i
 
 You can also run `python cli.py open-config` directly. Keep that process running while using the page, then press Ctrl+C to stop it. With MCP, the page is managed by the MCP process and can be reopened after idle expiry.
 
-The shared HTTP proxy defaults to `192.168.100.40:18080` on Windows and `127.0.0.1:18081` on Linux/Cage. Store its credentials outside the repository in `~/.config/openvpn-http-proxy/proxy-auth.json` (`username` and `password`), or set `VPN_HTTP_PROXY_AUTH_FILE`. `VPN_HTTP_PROXY_URL` overrides the default endpoint. Explicit existing proxy settings remain authoritative, including `enabled: false`; see the [proxy configuration reference](REFERENCE.md#global-configuration-configyaml). A failed proxy connection never falls back to direct TCP.
+The shared HTTP proxy defaults to `127.0.0.1:18080` on Windows and `127.0.0.1:18081` on Linux/Cage. Store its credentials outside the repository in `~/.config/openvpn-http-proxy/proxy-auth.json` (`username` and `password`), or set `VPN_HTTP_PROXY_AUTH_FILE`. `VPN_HTTP_PROXY_URL` overrides the default endpoint. Explicit existing proxy settings remain authoritative, including `enabled: false`; see the [proxy configuration reference](REFERENCE.md#global-configuration-configyaml). A failed proxy connection never falls back to direct TCP.
 
 ## Performance and resource limits
 
