@@ -23,7 +23,18 @@ def default_http_proxy():
         host, port = parsed.hostname, parsed.port if parsed.port is not None else 80
         # Validate before recognizing a historical installer-generated default.
         validate_proxy({"host": host, "port": port})
-        if ((host, port) in (("192.168.100.40", 18080), ("127.0.0.1", 18080))
+        legacy_endpoints = {("127.0.0.1", 18080)}
+        legacy_url = os.environ.get("VPN_HTTP_PROXY_LEGACY_URL", "").strip()
+        if legacy_url:
+            legacy = urlsplit(legacy_url)
+            if (legacy.scheme != "http" or not legacy.hostname or legacy.username is not None
+                    or legacy.password is not None or legacy.path not in ("", "/")
+                    or legacy.query or legacy.fragment):
+                raise ValueError("VPN_HTTP_PROXY_LEGACY_URL must be http://host:port without credentials")
+            legacy_endpoint = (legacy.hostname, legacy.port if legacy.port is not None else 80)
+            validate_proxy({"host": legacy_endpoint[0], "port": legacy_endpoint[1]})
+            legacy_endpoints.add(legacy_endpoint)
+        if ((host, port) in legacy_endpoints
                 and os.environ.get("VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT", "").strip() != "1"):
             host, port = stable_endpoint
     result = {

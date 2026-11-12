@@ -72,8 +72,8 @@ def test_key_auth_basic():
 
     # Case 1: run command using key auth
     out, err, code = run_cli(SERVER, "run", "whoami", "-t", "10")
-    _inc("ok" if code == 0 and "bit" in out else "fail",
-         "key auth run whoami returns 'bit'",
+    _inc("ok" if code == 0 and "YOUR_SSH_USER" in out else "fail",
+         "key auth run whoami returns 'YOUR_SSH_USER'",
          f"stdout={out.strip()!r} code={code}")
 
     # Case 2: run command with echo
@@ -86,7 +86,7 @@ def test_key_auth_basic():
     out, err, code = run_cli("list-servers")
     data = json.loads(out)
     srv = next((s for s in data["servers"] if s["name"] == "test-key-auth"), None)
-    _inc("ok" if srv and srv.get("host") == "192.168.8.8" else "fail",
+    _inc("ok" if srv and srv.get("host") == "192.0.2.10" else "fail",
          "list-servers shows test-key-auth with correct host",
          f"host={srv.get('host') if srv else 'N/A'}")
 

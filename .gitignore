@@ -10,6 +10,7 @@ venv/
 .venv/
 env/
 .env
+.env.*
 
 # IDE
 .vscode/
@@ -28,3 +29,37 @@ proxy_error.log
 
 # Server configs (contains credentials — DO NOT COMMIT)
 servers/
+
+# Local connection state, credentials and redistributable backups
+data/
+runtime-data/
+private-data/
+backups/
+outputs/
+work/
+credentials/
+secrets/
+config.local.yaml
+config.local.yml
+*.local.yaml
+*.local.yml
+*auth*.json
+*secret*.json
+*credentials*.json
+*.enc.json
+*.sqlite
+*.sqlite3
+*.db
+master.key
+*.pem
+*.key
+*.ppk
+id_rsa*
+id_ed25519*
+known_hosts*
+*.zip
+*.tgz
+*.tar
+*.tar.gz
+*.7z
+*.log

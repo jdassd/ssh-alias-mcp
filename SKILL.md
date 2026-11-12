@@ -14,11 +14,7 @@ description: >
 ## Quick Start
 
 ```bash
-# Shortcut (defined in AGENTS.md)
-wslts bash ~/.ssh-cli.sh <server> run "<command>"
-wslts bash ~/.ssh-cli.sh <server> upload <file> -n <name> --overwrite
-
-# Full CLI
+# Run from the installed plugin directory with its Python dependencies available.
 python cli.py <server> <subcommand> [args...] [-s] [-t SECS]
 ```
 

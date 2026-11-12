@@ -4,6 +4,8 @@
 
 AI-driven server operations tool. Configure servers in YAML, execute commands, deploy scripts, and manage files — all through a unified interface for AI Agents and CLI.
 
+The public release contains no saved servers or credentials. See [public release and review notes](PUBLIC_RELEASE.md) for local runtime dependencies, first-use configuration, and review examples.
+
 ## ✨ Highlights
 
 - **Browser configuration UI** — Open local settings to add, edit, and delete multiple servers
@@ -30,9 +32,9 @@ You can also run `python cli.py open-config` directly. Keep that process running
 
 The shared HTTP proxy defaults to `127.0.0.2:18080` on Windows and `127.0.0.1:18081` on Linux/Cage. Store its credentials outside the repository in `~/.config/openvpn-http-proxy/proxy-auth.json` (`username` and `password`), or set `VPN_HTTP_PROXY_AUTH_FILE`. `VPN_HTTP_PROXY_URL` overrides the default endpoint. Explicit existing proxy settings remain authoritative, including `enabled: false`; see the [proxy configuration reference](REFERENCE.md#global-configuration-configyaml). A failed proxy connection never falls back to direct TCP.
 
-For old installations whose `VPN_HTTP_PROXY_URL` still contains the former default `http://192.168.100.40:18080` or `http://127.0.0.1:18080`, the shared default resolver automatically uses the stable endpoint for the current platform. Windows uses the dedicated `127.0.0.2` loopback address to avoid Cage's automatic forwarding on `127.0.0.1:18080`. Other URLs and explicit per-server/global proxy hosts are preserved. Set `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1` if an exact historical address is intentional.
+The legacy loopback default `http://127.0.0.1:18080` maps to the current platform endpoint after URL validation. To migrate your own former shared endpoint, set `VPN_HTTP_PROXY_LEGACY_URL` to that exact HTTP URL; a matching `VPN_HTTP_PROXY_URL` then maps to the platform default. No private endpoint is embedded in this release. Other URLs and explicit per-server/global proxy fields remain unchanged. Set `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1` to preserve an intentional legacy endpoint.
 
-If a previous backup installer wrote that default into its managed global `config.yaml`, rerun the updated backup installer to migrate its installed default. The runtime resolver does not rewrite explicit configuration hosts.
+To migrate an explicit proxy entry in your own `config.yaml`, update that entry yourself. The runtime resolver does not rewrite explicit configuration hosts.
 
 ## Performance and resource limits
 
@@ -96,12 +98,12 @@ aliases:
 ```yaml
 # Linux server
 server:
-  host: "192.168.1.100"
+  host: "192.0.2.10"
   shell: bash
 
 # Windows server
 server:
-  host: "10.0.0.50"
+  host: "192.0.2.10"
   shell: powershell
 ```
 

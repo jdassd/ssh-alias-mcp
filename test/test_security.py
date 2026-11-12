@@ -97,8 +97,8 @@ def test_blacklist_deny():
 
     # Case 4: negative — command that does NOT match any blacklist pattern
     out, err, code = run_cli("security-test", "run", "whoami", "-t", "10")
-    _inc("ok" if code == 0 and out.strip() == "bit" else "fail",
-         "whoami returns 'bit' (not in blacklist)",
+    _inc("ok" if code == 0 and out.strip() == "YOUR_SSH_USER" else "fail",
+         "whoami returns 'YOUR_SSH_USER' (not in blacklist)",
          f"stdout={out.strip()!r}")
 
 
@@ -111,7 +111,7 @@ def test_whitelist_allow():
 
     # Case 1: command matches whitelist → allowed, exact output
     out, err, code = run_cli("security-test", "run", "whoami", "-t", "10")
-    _inc("ok" if code == 0 and out.strip() == "bit" else "fail",
+    _inc("ok" if code == 0 and out.strip() == "YOUR_SSH_USER" else "fail",
          "whoami matches whitelist → allowed",
          f"stdout={out.strip()!r} code={code}")
 

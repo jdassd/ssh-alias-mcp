@@ -82,7 +82,7 @@ Missing or null `server.proxy` inherits the global setting. If neither setting e
 
 HTTP settings support `host`, `port`, `username`, `password`, `auth_file`, and `timeout`. Credentials are read at connection time from the JSON `auth_file` containing `username` and `password`; the default is `~/.config/openvpn-http-proxy/proxy-auth.json`. Explicit username/password take priority. Set `auth_file: null` for an unauthenticated custom proxy. `VPN_HTTP_PROXY_URL=http://host:port` and `VPN_HTTP_PROXY_AUTH_FILE=/path/to/proxy-auth.json` override shared defaults; per-server/global explicit fields still take precedence. Passwords are not returned by the configuration UI or written to proxy error logs.
 
-The historical installer defaults `VPN_HTTP_PROXY_URL=http://192.168.100.40:18080` and `http://127.0.0.1:18080` are recognized after URL validation and mapped to the current platform's default. Windows uses `127.0.0.2:18080` to avoid Cage's automatic loopback forwarding. This compatibility rule applies only to the shared default layer: custom URLs and explicit per-server/global hosts are not rewritten. To intentionally keep a historical endpoint in the environment, set `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1`.
+The legacy loopback default `http://127.0.0.1:18080` maps to the current platform endpoint after URL validation. To migrate your own former shared endpoint, set `VPN_HTTP_PROXY_LEGACY_URL` to that exact HTTP URL; a matching `VPN_HTTP_PROXY_URL` then maps to the platform default. No private endpoint is embedded in this release. Other URLs and explicit per-server/global proxy fields remain unchanged. Set `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1` to preserve an intentional legacy endpoint.
 
 `auto_reconnect` enables background reconnects after a failed request.
 `reconnect_interval` is used while there have been fewer than five consecutive
@@ -108,10 +108,10 @@ server:
   group: "dept/team"            # Group identifier (multi-level path for sorting)
 
   # Authentication (choose one)
-  password: "your-password"      # Password auth
+  password: "YOUR_PASSWORD"      # Password auth
   # key: "/path/to/private_key"     # Or key auth
-  # key_password: "passphrase"      # Key passphrase (optional)
-  sudo_password: "sudo-pass"     # Sudo password (optional, defaults to password)
+  # key_password: "YOUR_PASSWORD"      # Key passphrase (optional)
+  sudo_password: "YOUR_PASSWORD"     # Sudo password (optional, defaults to password)
 
   # === Optional fields ===
   port: 22                       # SSH port (default 22)
@@ -137,9 +137,9 @@ server:
 
   # Upload/download path restrictions (empty = no restriction)
   allowed_local_paths:
-    - "/home/bit/scripts"
+    - "/home/YOUR_SSH_USER/scripts"
   allowed_remote_paths:
-    - "/home/bit/scripts"
+    - "/home/YOUR_SSH_USER/scripts"
 
 # Quick commands — automatically exposed as MCP tools
 aliases:
@@ -173,14 +173,14 @@ server:
 ```yaml
 # servers/internal-app.yml
 server:
-  host: "10.0.0.20"
+  host: "192.0.2.10"
   user: "deploy"
-  password: "target-password"
+  password: "YOUR_PASSWORD"
   jump_host: "bastion-prod"
 ```
 
 All CLI and MCP operations on `internal-app` first connect to `bastion-prod`,
-open an SSH `direct-tcpip` channel to `10.0.0.20:22`, and then establish the
+open an SSH `direct-tcpip` channel to `192.0.2.10:22`, and then establish the
 target SSH session over that channel. Bastion and target authentication remain
 separate; the target credentials are used only by the target SSH handshake.
 
@@ -217,7 +217,7 @@ extends:
 server:
   host: "198.51.100.10"      # Override ①'s host
   port: 22
-  password: "xxx"
+  password: "YOUR_PASSWORD"
 
 aliases:                      # Append — local aliases overlay on inherited
   - name: deploy
@@ -303,9 +303,9 @@ Restrict upload/download paths:
 ```yaml
 server:
   allowed_local_paths:
-    - "/home/bit/scripts"      # Allowed local upload paths
+    - "/home/YOUR_SSH_USER/scripts"      # Allowed local upload paths
   allowed_remote_paths:
-    - "/home/bit/scripts"      # Allowed remote upload/download paths
+    - "/home/YOUR_SSH_USER/scripts"      # Allowed remote upload/download paths
 ```
 
 - Empty (default): No restriction.

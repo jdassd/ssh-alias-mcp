@@ -79,8 +79,8 @@ def test_extends_server_fields():
     # test-server.yml has no extends, so it should work as-is.
     # We verify the server fields are loaded correctly.
     out, err, code = run_cli("test-server", "run", "whoami", "-t", "10")
-    _inc("ok" if code == 0 and out.strip() == "bit" else "fail",
-         "test-server whoami returns 'bit'",
+    _inc("ok" if code == 0 and out.strip() == "YOUR_SSH_USER" else "fail",
+         "test-server whoami returns 'YOUR_SSH_USER'",
          f"stdout={out.strip()!r} code={code}")
 
     # Verify host/port from list-servers
@@ -90,11 +90,11 @@ def test_extends_server_fields():
          f"code={code}")
     data = json.loads(out)
     test_srv = next((s for s in data["servers"] if s["name"] == "test-server"), None)
-    _inc("ok" if test_srv and test_srv.get("host") == "ali.gzbit.cn" else "fail",
-         "test-server host is ali.gzbit.cn",
+    _inc("ok" if test_srv and test_srv.get("host") == "ssh.example.com" else "fail",
+         "test-server host is ssh.example.com",
          f"host={test_srv.get('host') if test_srv else 'N/A'}")
-    _inc("ok" if test_srv and test_srv.get("port") == 22021 else "fail",
-         "test-server port is 22021",
+    _inc("ok" if test_srv and test_srv.get("port") == 22 else "fail",
+         "test-server port is 22",
          f"port={test_srv.get('port') if test_srv else 'N/A'}")
 
 

@@ -4,6 +4,8 @@
 
 AI 驱动的服务器运维工具。YAML 配置服务器，执行命令、部署脚本、管理文件 — AI Agent 和命令行统一接口。
 
+公开发布物不含已保存的服务器或凭据。本机运行依赖、首次配置与审核示例见[公开发布说明](PUBLIC_RELEASE.md)。
+
 ## ✨ 亮点
 
 - **浏览器配置界面** — 在本机网页中添加、修改、删除多台服务器
@@ -30,9 +32,9 @@ python cli.py my-server alias deploy
 
 共享 HTTP 代理默认使用 Windows 的 `127.0.0.2:18080` 或 Linux/Cage 的 `127.0.0.1:18081`。凭据保存在仓库外的 `~/.config/openvpn-http-proxy/proxy-auth.json`（username/password），也可通过 `VPN_HTTP_PROXY_AUTH_FILE` 指定；`VPN_HTTP_PROXY_URL` 覆盖默认地址。已有明确代理配置仍优先，包括 `enabled: false` 直连；详细说明见[全局配置参考](REFERENCE.zh-CN.md#全局配置configyaml)。代理失败不会自动回退到直连。
 
-旧安装如果仍在 `VPN_HTTP_PROXY_URL` 中保存原默认地址 `http://192.168.100.40:18080` 或 `http://127.0.0.1:18080`，共享默认解析会自动使用当前平台的稳定入口。Windows 使用专用回环地址 `127.0.0.2`，避免与 Cage 在 `127.0.0.1:18080` 的自动端口转发冲突。其他地址和单服务器、全局中明确填写的代理主机保持原值。若有意使用某个历史地址，可设置 `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1` 保留它。
+历史通用回环默认值 `http://127.0.0.1:18080` 经过 URL 校验后映射到当前平台入口。若要迁移用户自己的旧共享代理，可将 `VPN_HTTP_PROXY_LEGACY_URL` 设为该完整 HTTP URL；与之完全匹配的 `VPN_HTTP_PROXY_URL` 才会改用平台默认入口。发布物不内置私人代理地址，其他 URL 和单服务器、全局中显式代理字段保持不变。需要有意保留历史入口时，设置 `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1`。
 
-如果旧备份安装器把原默认地址写进了其管理的全局 `config.yaml`，重新运行新版备份安装器可迁移该安装默认值；运行时解析不会改写显式配置的主机地址。
+如果需要迁移用户自己的 `config.yaml` 中已明确填写的代理入口，请自行更新该项；运行时解析不会改写显式配置的主机地址。
 
 ## 性能与资源上限
 
@@ -96,12 +98,12 @@ aliases:
 ```yaml
 # Linux 服务器
 server:
-  host: "192.168.1.100"
+  host: "192.0.2.10"
   shell: bash
 
 # Windows 服务器
 server:
-  host: "10.0.0.50"
+  host: "192.0.2.10"
   shell: powershell
 ```
 

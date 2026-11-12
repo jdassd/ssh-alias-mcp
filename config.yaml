@@ -1,7 +1,7 @@
 # SSH Manager — Global Configuration
 
 # Path to the servers/ directory (can be absolute or relative to this config file)
-servers_dir: 'D:/agents/servers'
+servers_dir: 'servers'
 
 proxy:
   # HTTP CONNECT; set enabled:false for an intentional direct connection.

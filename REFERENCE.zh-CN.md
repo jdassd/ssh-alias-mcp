@@ -85,7 +85,7 @@ HTTP CONNECT 承载 SSH TCP 连接，命令、别名、SFTP 上传下载及跳�
 
 HTTP 配置支持 `host`、`port`、`username`、`password`、`auth_file`、`timeout`。默认在连接时从 `~/.config/openvpn-http-proxy/proxy-auth.json` 读取 username/password；明确配置的用户名密码优先。自定义无认证代理可设 `auth_file: null`。环境变量 `VPN_HTTP_PROXY_URL=http://host:port`、`VPN_HTTP_PROXY_AUTH_FILE=/path/to/proxy-auth.json` 覆盖共享默认值，单服务器或全局中显式字段优先。配置界面不会返回已保存的代理密码，错误日志也不记录认证字段。
 
-旧安装器生成的 `VPN_HTTP_PROXY_URL=http://192.168.100.40:18080` 和 `http://127.0.0.1:18080` 会先经过 URL 校验，再映射到当前平台的默认地址。Windows 使用专用 `127.0.0.2:18080`，避免 Cage 自动端口转发占用 `127.0.0.1:18080`。此兼容规则仅作用于共享默认层，其他 URL 和单服务器、全局中显式 host 均不改写。需要在环境变量中有意保留历史端点时，设置 `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1`。
+历史通用回环默认值 `http://127.0.0.1:18080` 经过 URL 校验后映射到当前平台入口。若要迁移用户自己的旧共享代理，可将 `VPN_HTTP_PROXY_LEGACY_URL` 设为该完整 HTTP URL；与之完全匹配的 `VPN_HTTP_PROXY_URL` 才会改用平台默认入口。发布物不内置私人代理地址，其他 URL 和单服务器、全局中显式代理字段保持不变。需要有意保留历史入口时，设置 `VPN_HTTP_PROXY_KEEP_LEGACY_ENDPOINT=1`。
 
 `auto_reconnect` 用于控制连接请求失败后的后台重连。连续连接失败少于 5 次时，
 按 `reconnect_interval` 指定的秒数重试；第 5 次失败后降为每 60 秒重试一次。
@@ -110,10 +110,10 @@ server:
   group: "dept/team"            # 分组标识符（多级路径用于排序）
 
   # 认证方式（二选一）
-  password: "your-password"      # 密码认证
+  password: "YOUR_PASSWORD"      # 密码认证
   # key: "/path/to/private_key"     # 或密钥认证
-  # key_password: "passphrase"      # 密钥密码（可选）
-  sudo_password: "sudo-pass"     # Sudo 密码（可选，默认为 password）
+  # key_password: "YOUR_PASSWORD"      # 密钥密码（可选）
+  sudo_password: "YOUR_PASSWORD"     # Sudo 密码（可选，默认为 password）
 
   # === 可选字段 ===
   port: 22                       # SSH 端口（默认 22）
@@ -139,9 +139,9 @@ server:
 
   # 上传/下载路径限制（空 = 无限制）
   allowed_local_paths:
-    - "/home/bit/scripts"
+    - "/home/YOUR_SSH_USER/scripts"
   allowed_remote_paths:
-    - "/home/bit/scripts"
+    - "/home/YOUR_SSH_USER/scripts"
 
 # 快捷命令 — 自动暴露为 MCP 工具
 aliases:
@@ -175,14 +175,14 @@ server:
 ```yaml
 # servers/internal-app.yml
 server:
-  host: "10.0.0.20"
+  host: "192.0.2.10"
   user: "deploy"
-  password: "target-password"
+  password: "YOUR_PASSWORD"
   jump_host: "bastion-prod"
 ```
 
 对 `internal-app` 的所有 CLI 和 MCP 操作都会先连接 `bastion-prod`，再打开
-通往 `10.0.0.20:22` 的 SSH `direct-tcpip` 通道，最后在该通道上建立目标机
+通往 `192.0.2.10:22` 的 SSH `direct-tcpip` 通道，最后在该通道上建立目标机
 SSH 会话。堡垒机和目标机分别认证；目标机凭据只用于目标 SSH 握手。
 
 - 仅支持一层跳板机。自引用、循环引用以及自身还配置了 `jump_host` 的堡垒机都会被拒绝。
@@ -217,7 +217,7 @@ extends:
 server:
   host: "198.51.100.10"      # 覆盖 ① 的主机
   port: 22
-  password: "xxx"
+  password: "YOUR_PASSWORD"
 
 aliases:                      # 追加 — 本地别名胜承继承的别名
   - name: deploy
@@ -303,9 +303,9 @@ server:
 ```yaml
 server:
   allowed_local_paths:
-    - "/home/bit/scripts"      # 允许的本地上传路径
+    - "/home/YOUR_SSH_USER/scripts"      # 允许的本地上传路径
   allowed_remote_paths:
-    - "/home/bit/scripts"      # 允许的远程上传/下载路径
+    - "/home/YOUR_SSH_USER/scripts"      # 允许的远程上传/下载路径
 ```
 
 - 空（默认）：无限制。
